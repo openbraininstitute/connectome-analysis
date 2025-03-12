@@ -8,11 +8,12 @@ import pandas as pd
 from scipy.stats import hypergeom
 from scipy.stats import binom
 from scipy.linalg import eigvals
+import scipy.sparse as sp
 #TODO: MODIFY THE IMPORTS TO EXTERNAL IMPORTS
 
-from .topology import node_degree
+from .topology import node_degree, rc_submatrix, underlying_undirected_matrix
 
-def closeness_connected_components(adj, neuron_properties=[], directed=False, return_sum=True):
+def closeness_connected_components(adj, directed=False, return_sum=True):
     """Compute the closeness of each connected component of more than 1 vertex
     
     Parameters
@@ -34,7 +35,7 @@ def closeness_connected_components(adj, neuron_properties=[], directed=False, re
     from sknetwork.ranking import Closeness
     from scipy.sparse.csgraph import connected_components
 
-    matrix=adj.toarray()
+    matrix = sp.csr_matrix(adj)
     if directed:
         n_comp, comp = connected_components(matrix, directed=True, connection="strong")
     else:
@@ -47,9 +48,9 @@ def closeness_connected_components(adj, neuron_properties=[], directed=False, re
     for i in range(n_comp):
         c = np.zeros(n)
         idx = np.where(comp == i)[0]
-        sub_mat = matrix[np.ix_(idx, idx)].tocsr()
+        sub_mat = matrix[np.ix_(idx, idx)]
         if sub_mat.getnnz() > 0:
-            c[idx] = closeness.fit_transform(sub_mat)
+            c[idx] = closeness.fit_predict(sub_mat)
             all_c.append(c)
     if return_sum:
         all_c = np.array(all_c)
@@ -57,46 +58,108 @@ def closeness_connected_components(adj, neuron_properties=[], directed=False, re
     else:
         return all_c
 
-def communicability(adj, neuron_properties):
-    pass
+def connected_components(adj,directed=True, connection='weak', return_labels=False):
+    """Returns a list of the size of the connected components of the graph
+    
+    Parameters
+    ----------
+    adj : array_like or sparse matrix
+        Adjacency matrix of the graph
+    directed : bool
+        If `True`, will be compute connected components of the directed graph
+    connection : str {'weak', 'strong'}
+        If `weak`, it will compute the connected components of the underlying undirected graph. 
+        If `strong`, it will compute strongly connected components of the directed graph.
+    return_labels : bool
+        If `True`, will return the labels of the connected components
 
-def closeness(adj, neuron_properties, directed=False):
-    """Compute closeness centrality using sknetwork on all connected components or strongly connected
-    component (if directed==True)"""
-    return closeness_connected_components(adj, directed=directed)
+    Returns
+    -------
+    array_like
+        A list of the size of the connected components of the graph. 
+        If return_labels == True, it also returns the list of labels of the connected components.
+    """
 
-def centrality(self, sub_gids, kind="closenesgit rebases", directed=False):
-    """Compute a centrality of the graph. `kind` can be 'betweeness' or 'closeness'"""
-    if kind == "closeness":
-        return self.closeness(sub_gids, directed)
+    matrix = sp.csr_matrix(adj)
+
+    comps=sp.csgraph.connected_components(matrix , directed=directed, 
+                                          connection=connection, return_labels=True)
+    comps_size=np.unique(comps[1], return_counts=True)[1]
+    if return_labels:
+        return comps_size, comps[1]
     else:
-        ValueError("Kind must be 'closeness'!")
-        #TODO:  Implement betweeness
+        return comps_size
 
-def connected_components(adj,neuron_properties=[]):
-    """Returns a list of the size of the connected components of the underlying undirected graph on sub_gids,
-    if None, compute on the whole graph"""
+def core_number(adj):
+    """Returns the core number for each node.
 
-    matrix=adj.toarray()
-    matrix_und = np.where((matrix+matrix.T) >= 1, 1, 0)
-    # TODO: Change the code from below to scipy implementation that seems to be faster!
-    G = nx.from_numpy_matrix(matrix_und)
-    return [len(c) for c in sorted(nx.connected_components(G), key=len, reverse=True)]
+        Parameters
+        ----------
+        adj : array_like or sparse matrix
+            Adjacency matrix of the graph
+        directed : bool
+            If `True`, will be compute connected components of the directed graph
+        connection : str {'weak', 'strong'}
+            If `weak`, it will compute the connected components of the underlying undirected graph. 
+            If `strong`, it will compute strongly connected components of the directed graph.
+        return_labels : bool
+            If `True`, will return the labels of the connected components
 
-def core_number(adj, neuron_properties=[]):
-    """Returns k core of directed graph, where degree of a vertex is the sum of in degree and out degree"""
+        Returns
+        -------
+        dict
+            A dictionary with keys the indices of the nodes of adj and values their corresponding core number.
+
+        Notes
+        -----
+        The k-core of a graph is the maximal subgraph that contains nodes of degree k or more in the induced subgraph.
+        The core number of a node is the largest value k of a k-core containing that node.
+        For directed graphs the total node degree is use, i.e., the sum of in-degree + out-degree.
+    """
     # TODO: Implement directed (k,l) core and k-core of underlying undirected graph (very similar to this)
-    G = nx.from_numpy_matrix(adj.toarray())
+    adj=sp.csr_matrix(adj)
+    G = nx.from_scipy_sparse_array(adj)
     # Very inefficient (returns a dictionary!). TODO: Look for different implementation
     return nx.algorithms.core.core_number(G)
 
     # TODO: Filtered simplex counts with different weights on vertices (coreness, intersection)
     #  or on edges (strength of connection).
 
-def density(adj, neuron_properties=[]):
-    #Todo: Add #cells/volume as as possible spatial density
-    adj=adj.astype('bool').astype('int')
-    return adj.sum() / np.prod(adj.shape)
+def density(adj, type="directed", skip_symmetry_check=False):
+    """Returns the density of a matrix.
+
+        Parameters
+        ----------
+        adj : array_like or sparse matrix
+            Adjacency matrix of the graph
+        type : str {'directed', 'undirected', 'reciprocal'}
+            The type of the graph considered for the computation.
+            If 'directed', the density as a directed graph is computed.
+            If 'undirected', the density of the underlying undirected graph is computed.
+            If 'reciprocal', the density of the underlying reciprocal graph is computed.
+        skip_symmetry_check : bool
+            If `True`, it will skip the check for symmetry of the matrix.
+
+        Returns
+        -------
+        float
+            The density of the graph.
+    """
+    adj=sp.csr_matrix(adj).astype('bool')
+    n=adj.shape[0]
+    if type=="undirected":
+        if not skip_symmetry_check:
+            if (adj!=adj.T).nnz >0:
+                print("The graph is directed. Taking the underlying undirected graph")
+                adj=underlying_undirected_matrix(adj)
+        return 2*adj.sum() / (n*(n-1))
+    elif type=="directed":
+        return adj.sum() / (n*(n-1))
+    if type=="reciprocal":
+        adj=rc_submatrix(adj)
+        return 2*adj.sum() /  (n*(n-1))
+    
+## Checked up to here!
 
 def __make_expected_distribution_model_first_order__(adj, direction="efferent"):
     #TODO: Document, utility function used in COMMON NEIGHBOURS ANALYSIS
@@ -716,6 +779,22 @@ def bls_matrix(matrix, reverse_flow=False):
     #return np.subtract(np.eye(len(non_quasi_isolated),dtype=int),np.matmul(inv(matrix_D),matrix_W))
     current_size = len(matrix)
     return np.subtract(np.eye(current_size,dtype='float64'),tps_matrix(matrix, in_deg=(not reverse_flow)))
+
+
+## FUNCTIONS YET TO IMPLEMENT REMOVE FROM THE CODEBASE TO CLEAN UP THE DOCS 
+
+# def communicability(adj, neuron_properties): 
+#     pass
+
+# def centrality(self, sub_gids, kind="closenesgit rebases", directed=False): 
+#     """Compute a centrality of the graph. `kind` can be 'betweeness' or 'closeness'"""
+#     if kind == "closeness":
+#         return self.closeness(sub_gids, directed)
+#     else:
+#         ValueError("Kind must be 'closeness'!")
+#         #TODO:  Implement betweeness
+
+
 
 
 ##
