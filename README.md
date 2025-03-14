@@ -8,14 +8,14 @@
 
 ## Documentation 
 
-See our [**documentation**](https://danielaegassan.github.io/connectome_analysis) for detailed explanations including examples and tutorials.
+See our [**documentation**](https://openbraininstitute.github.io/connectome-analysis/) for detailed explanations including examples and tutorials.
 
 See our [**source code**](src/connalysis) for implementation details.
 
 ## User installation
 
 ```sh
-pip install git+https://github.com/danielaegassan/connectome_analysis.git
+pip install git+https://github.com/openbraininstitute/connectome-analysis.git
 ```
 
 ---
@@ -54,7 +54,7 @@ Copyright (c) 2023 Blue Brain Project / EPFL.
   * [Poetry](https://python-poetry.org/)
   * [gcc](https://gcc.gnu.org/) 9+
   * [CMake](https://cmake.org/)
-  * Python 3.8+
+  * Python 3.9+
 
 * Create a virtual environment and install the dependencies
 
