@@ -12,22 +12,28 @@ import logging
 import numpy as np
 import scipy.sparse as sp
 import bigrandomgraphs as gm
+
 LOG = logging.getLogger("connectome-analysis-randomization")
 LOG.setLevel("INFO")
-logging.basicConfig(format="%(asctime)s %(levelname)-8s %(message)s",
-                    level=logging.INFO,
-                    datefmt="%Y-%m-%d %H:%M:%S")
+logging.basicConfig(
+    format="%(asctime)s %(levelname)-8s %(message)s",
+    level=logging.INFO,
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 #######################################################
 ################# PROBABILITY MODELS  #################
 #######################################################
 
+
 def _dict_to_coo(adj, N):
     # Utility function to format dict into scipy.sparse.coo
-    return sp.coo_matrix((np.ones(len(adj['row'])), (adj['row'], adj['col'])), shape=(N, N))
+    return sp.coo_matrix(
+        (np.ones(len(adj["row"])), (adj["row"], adj["col"])), shape=(N, N)
+    )
 
 
-def run_ER(n, p, threads=8, seed=(None,None)):
+def run_ER(n, p, threads=8, seed=(None, None)):
     """Creates an Erdos Renyi digraph.
 
     Parameters
@@ -58,14 +64,15 @@ def run_ER(n, p, threads=8, seed=(None,None)):
         If p is not between 0 and 1
 
     """
-    assert (p >= 0 and p <= 1), "p must be between 0 and 1"
-    if seed[0]==None or seed[1]==None:
-        adj = gm.ER(n,p,threads)
+    assert p >= 0 and p <= 1, "p must be between 0 and 1"
+    if seed[0] == None or seed[1] == None:
+        adj = gm.ER(n, p, threads)
     else:
-        adj = gm.ER(n,p,threads,seed[0],seed[1])
-    return _dict_to_coo(adj,n)
+        adj = gm.ER(n, p, threads, seed[0], seed[1])
+    return _dict_to_coo(adj, n)
 
-def ER_model(adj, threads=8, seed=(None,None)):
+
+def ER_model(adj, threads=8, seed=(None, None)):
     """Creates an Erdos Renyi digraph.
 
     Parameters
@@ -82,7 +89,7 @@ def ER_model(adj, threads=8, seed=(None,None)):
     coo matrix
         Matrix of the generated control
 
-    
+
     Raises
     ------
     AssertionError
@@ -91,14 +98,13 @@ def ER_model(adj, threads=8, seed=(None,None)):
     """
     assert adj.shape[0] == adj.shape[1], "The matrix is not square"
     n = adj.shape[0]
-    p = adj.astype(bool).sum()/((n)*(n-1))
+    p = adj.astype(bool).sum() / ((n) * (n - 1))
     if isinstance(seed, int):
-      seed=(seed,seed)
+        seed = (seed, seed)
     return run_ER(n=n, p=p, threads=threads, seed=seed)
 
 
-
-def run_SBM(n, probs, blocks, threads=8, seed=(None,None)):
+def run_SBM(n, probs, blocks, threads=8, seed=(None, None)):
     """Creates a random digraph using the stochastic block model.
 
     Parameters
@@ -142,14 +148,14 @@ def run_SBM(n, probs, blocks, threads=8, seed=(None,None)):
 
     """
 
-    if seed[0]==None or seed[1]==None:
+    if seed[0] == None or seed[1] == None:
         adj = gm.SBM(n, probs, blocks, threads)
     else:
         adj = gm.SBM(n, probs, blocks, threads, seed[0], seed[1])
     return _dict_to_coo(adj, n)
 
 
-def run_DD2(n,a,b,xyz,threads=8, seed=(None,None)):
+def run_DD2(n, a, b, xyz, threads=8, seed=(None, None)):
     """Creates a random digraph using the 2nd-order probability model.
 
     Parameters
@@ -179,16 +185,22 @@ def run_DD2(n,a,b,xyz,threads=8, seed=(None,None)):
 
 
     """
-    if seed[0]==None or seed[1]==None:
-        adj = gm.DD2(n,a,b,xyz,threads)
+    if seed[0] == None or seed[1] == None:
+        adj = gm.DD2(n, a, b, xyz, threads)
     else:
-        adj = gm.DD2(n,a,b,xyz,threads,seed[0],seed[1])
-    return _dict_to_coo(adj,n)
+        adj = gm.DD2(n, a, b, xyz, threads, seed[0], seed[1])
+    return _dict_to_coo(adj, n)
 
-def run_DD2_model(adj, node_properties,
-                  model_params_dd2=None, #an analysis that could be loaded from the pipeline
-                  coord_names= ['x', 'y', 'z'],
-                  threads=8, return_params=False, **config_dict):
+
+def run_DD2_model(
+    adj,
+    node_properties,
+    model_params_dd2=None,  # an analysis that could be loaded from the pipeline
+    coord_names=["x", "y", "z"],
+    threads=8,
+    return_params=False,
+    **config_dict,
+):
     """Wrapper for fitting a model and generating a random control graph based on 2nd order distance dependence model.
 
     Parameters
@@ -229,31 +241,40 @@ def run_DD2_model(adj, node_properties,
     """
 
     if model_params_dd2 is None:
-        from .import modelling
-        #TODO:  What to do if coord_names are also given in configdict and do not match coord_names?
-        config_dict["coord_names"]=coord_names
-        model_params_dd2 = modelling.conn_prob_2nd_order_model(adj, node_properties,**config_dict)
-        LOG.warning("Fit parameters are used directly but should be checked by hand if the proper fit is obtained!")
+        from . import modelling
+
+        # TODO:  What to do if coord_names are also given in configdict and do not match coord_names?
+        config_dict["coord_names"] = coord_names
+        model_params_dd2 = modelling.conn_prob_2nd_order_model(
+            adj, node_properties, **config_dict
+        )
+        LOG.warning(
+            "Fit parameters are used directly but should be checked by hand if the proper fit is obtained!"
+        )
 
     LOG.info("Run DD2 model with parameters: \n%s", model_params_dd2)
 
     n = adj.shape[0]
-    a = model_params_dd2.mean(axis=0)['exp_model_scale']
-    b = model_params_dd2.mean(axis=0)['exp_model_exponent']
-    xyz = node_properties.loc[:,coord_names].to_numpy() #Make and assert that checks these columns exist!
-    if len(coord_names)<3: #Extend by zeros if lower dimensional data was used to compute distance
-        xyz=np.hstack([xyz,np.zeros((xyz.shape[0],3-xyz.shape[1]))])
-    C=gm.DD2(n,a,b,xyz,threads)
-    i=C['row']
-    j=C['col']
-    data=np.ones(len(i))
-    if return_params==True:
-        return sp.coo_matrix((data, (i, j)), [n,n]), model_params_dd2
+    a = model_params_dd2.mean(axis=0)["exp_model_scale"]
+    b = model_params_dd2.mean(axis=0)["exp_model_exponent"]
+    xyz = node_properties.loc[
+        :, coord_names
+    ].to_numpy()  # Make and assert that checks these columns exist!
+    if (
+        len(coord_names) < 3
+    ):  # Extend by zeros if lower dimensional data was used to compute distance
+        xyz = np.hstack([xyz, np.zeros((xyz.shape[0], 3 - xyz.shape[1]))])
+    C = gm.DD2(n, a, b, xyz, threads)
+    i = C["row"]
+    j = C["col"]
+    data = np.ones(len(i))
+    if return_params == True:
+        return sp.coo_matrix((data, (i, j)), [n, n]), model_params_dd2
     else:
-        return sp.coo_matrix((data, (i, j)), [n,n])
+        return sp.coo_matrix((data, (i, j)), [n, n])
 
 
-def run_DD3(n,a1,b1,a2,b2,xyz,depths,threads=8, seed=(None,None)):
+def run_DD3(n, a1, b1, a2, b2, xyz, depths, threads=8, seed=(None, None)):
     """Creates a random digraph using the 2nd-order probability model.
 
     Parameters
@@ -289,14 +310,14 @@ def run_DD3(n,a1,b1,a2,b2,xyz,depths,threads=8, seed=(None,None)):
 
 
     """
-    if seed[0]==None or seed[1]==None:
-        adj = gm.DD3(n,a1,b1,a2,b2,xyz,depths,threads)
+    if seed[0] == None or seed[1] == None:
+        adj = gm.DD3(n, a1, b1, a2, b2, xyz, depths, threads)
     else:
-        adj = gm.DD3(n,a1,b1,a2,b2,xyz,depths,threads,seed[0],seed[1])
-    return _dict_to_coo(adj,n)
+        adj = gm.DD3(n, a1, b1, a2, b2, xyz, depths, threads, seed[0], seed[1])
+    return _dict_to_coo(adj, n)
 
 
-def run_DD2_block_pre(n, probs, blocks, xyz, threads=8, seed=(None,None)):
+def run_DD2_block_pre(n, probs, blocks, xyz, threads=8, seed=(None, None)):
     """Creates a random digraph using a combination of the stochastic block model
        and the 2nd order distance dependent model. Such that the probability of an edge
        is given by the distance dependent equation, but the parameters of that equation
@@ -343,14 +364,14 @@ def run_DD2_block_pre(n, probs, blocks, xyz, threads=8, seed=(None,None)):
 
     """
 
-    if seed[0]==None or seed[1]==None:
+    if seed[0] == None or seed[1] == None:
         adj = gm.DD2_block_pre(n, probs, blocks, xyz, threads)
     else:
         adj = gm.DD2_block_pre(n, probs, blocks, xyz, threads, seed[0], seed[1])
-    return _dict_to_coo(adj,n)
+    return _dict_to_coo(adj, n)
 
 
-def run_DD2_block(n, probs, blocks, xyz, threads, seed=(None,None)):
+def run_DD2_block(n, probs, blocks, xyz, threads, seed=(None, None)):
     """Creates a random digraph using a combination of the stochastic block model
        and the 2nd order distance dependent model. Such that the probability of an edge
        is given by the distance dependent equation, but the parameters of that equation
@@ -396,11 +417,11 @@ def run_DD2_block(n, probs, blocks, xyz, threads, seed=(None,None)):
     Similar function that only accounts for the block of the source vertex
 
     """
-    if seed[0]==None or seed[1]==None:
+    if seed[0] == None or seed[1] == None:
         adj = gm.DD2_block(n, probs, blocks, xyz, threads)
     else:
         adj = gm.DD2_block(n, probs, blocks, xyz, threads, seed[0], seed[1])
-    return _dict_to_coo(adj,n)
+    return _dict_to_coo(adj, n)
 
 
 #######################################################
@@ -411,6 +432,7 @@ def _seed_random_state(shuffler, seeder=np.random.seed):
 
     It is expected that the generator can be seeded calling `seeder(seed)`.
     """
+
     def seed_and_run_method(adj, neuron_properties=[], seed=None, **kwargs):
         """Reinitialize numpy random state using the value of seed among `kwargs`.
         doing nothing if no `seed` provided --- expecting an external initialization.
@@ -462,8 +484,8 @@ def ER_shuffle(adj, neuron_properties=[], shuffle_type="sparse"):
 
         # Shuffle away from the diagonal
         np.random.shuffle(off_diagonal)
-        adj[np.triu_indices(N, k=1)] = off_diagonal[0:N * (N - 1) // 2]
-        adj[np.tril_indices(N, k=-1)] = off_diagonal[N * (N - 1) // 2:]
+        adj[np.triu_indices(N, k=1)] = off_diagonal[0 : N * (N - 1) // 2]
+        adj[np.tril_indices(N, k=-1)] = off_diagonal[N * (N - 1) // 2 :]
         # Return matrix
         return sp.coo_matrix(adj)
     elif shuffle_type == "sparse":
@@ -490,7 +512,7 @@ def ER_shuffle(adj, neuron_properties=[], shuffle_type="sparse"):
         return sp.coo_matrix((data, (rows, cols)), shape=(N, N))
 
 
-def configuration_model(M, seed = None):
+def configuration_model(M, seed=None):
     """Function to generate the configuration control model, obtained by
     shuffling the row and column of coo format independently, to create
     new coo matrix, then removing any multiple edges and loops.
@@ -515,16 +537,17 @@ def configuration_model(M, seed = None):
     [run_DD2](randomization.md#src.connalysis.randomization.randomization.run_DD2) :
     Function which runs the 2nd distance dependent model
     """
-    adj=M.copy().tocoo()
+    adj = M.copy().tocoo()
     generator = np.random.default_rng(seed)
     R = adj.row
     C = adj.col
     generator.shuffle(R)
     generator.shuffle(C)
-    CM_matrix = sp.coo_matrix(([1]*len(R),(R,C)),shape=adj.shape).tocsr()
+    CM_matrix = sp.coo_matrix(([1] * len(R), (R, C)), shape=adj.shape).tocsr()
     CM_matrix.setdiag(0)
     CM_matrix.eliminate_zeros()
     return CM_matrix
+
 
 def adjusted_ER(adj, seed=None):
     """Function to generate an Erdos  Renyi model with adjusted bidirectional connections.
@@ -553,16 +576,23 @@ def adjusted_ER(adj, seed=None):
     """
     from connalysis.network.topology import rc_submatrix
     from .rand_utils import adjust_bidirectional_connections
+
     generator = np.random.default_rng(seed)
     ER_matrix = ER_shuffle(adj, seed=seed).tocsc()
-    bedges_to_add = int(rc_submatrix(adj).count_nonzero() -rc_submatrix(ER_matrix).count_nonzero())//2
+    bedges_to_add = (
+        int(rc_submatrix(adj).count_nonzero() - rc_submatrix(ER_matrix).count_nonzero())
+        // 2
+    )
     if bedges_to_add >= 0:
         return adjust_bidirectional_connections(ER_matrix, bedges_to_add, generator)
     else:
-        LOG.info("Erdos-Renyi control has more reciprocal connections than original, so they are not adjusted.")
+        LOG.info(
+            "Erdos-Renyi control has more reciprocal connections than original, so they are not adjusted."
+        )
         return ER_matrix
 
-def underlying_model(adj, seed: int=None):
+
+def underlying_model(adj, seed: int = None):
     """Function to generate a digraph with the same  underlying undirected graph as adj
         and the same number of reciprocal connections
 
@@ -587,13 +617,15 @@ def underlying_model(adj, seed: int=None):
     Function which returns a digraph with shuffled reciprocal connections
     """
     from connalysis.network.topology import rc_submatrix
-    from .rand_utils import  add_bidirectional_connections
+    from .rand_utils import add_bidirectional_connections
+
     generator = np.random.default_rng(seed)
     target_bedges = int(rc_submatrix(adj).count_nonzero() / 2)
     ut_matrix = sp.triu(adj + adj.T)
     return add_bidirectional_connections(ut_matrix, target_bedges, generator)
 
-def bishuffled_model(adj, seed = None):
+
+def bishuffled_model(adj, seed=None):
     """Function to generate a digraph with shuffled reciprocal connections
 
     Parameters
@@ -618,17 +650,23 @@ def bishuffled_model(adj, seed = None):
     and same number of reciprocal connections
     """
     from connalysis.network.topology import rc_submatrix
-    from .rand_utils import  add_bidirectional_connections, half_matrix
+    from .rand_utils import add_bidirectional_connections, half_matrix
+
     generator = np.random.default_rng(seed)
     ut_bedges = sp.triu(rc_submatrix(adj))
     target_bedges = ut_bedges.count_nonzero()
     bedges1, bedges2 = half_matrix(ut_bedges, generator)
-    return add_bidirectional_connections(adj - bedges1 - bedges2.T, target_bedges, generator)
+    return add_bidirectional_connections(
+        adj - bedges1 - bedges2.T, target_bedges, generator
+    )
+
 
 #######################################################
 ################ GRAPH MODIFICATIONS  #################
 #######################################################
-def add_rc_connections_skeleta(adj,factors,dimensions=None, skeleta=None, threads=8, seed=0, return_skeleta=False):
+def add_rc_connections_skeleta(
+    adj, factors, dimensions=None, skeleta=None, threads=8, seed=0, return_skeleta=False
+):
     """Function to add reciprocal connections at random to adj on the skeleta of maximal simplices of adj
 
     Parameters
@@ -657,39 +695,55 @@ def add_rc_connections_skeleta(adj,factors,dimensions=None, skeleta=None, thread
         If return_skeleta=True it also returns the skeleta of maximal simplices of adj in the dimensions selected
 
     """
-    adj=adj.tocsr()
+    adj = adj.tocsr()
     from connalysis.network.topology import rc_submatrix
     from .rand_utils import add_bidirectional_connections
+
     # Compute skeleton graphs if not precomputed
     if skeleta is None:
         from connalysis.network.topology import get_k_skeleta_graph
-        max_simplices=True # Add option for all simplices?
-        skeleta=get_k_skeleta_graph(adj, max_simplices=max_simplices, dimensions=dimensions, threads=threads)
+
+        max_simplices = True  # Add option for all simplices?
+        skeleta = get_k_skeleta_graph(
+            adj, max_simplices=max_simplices, dimensions=dimensions, threads=threads
+        )
     # Restrict to dimensions that contain simplices
     if dimensions is None:
         dimensions = np.array([int(key[10:]) for key in skeleta.keys()])
     else:
-        dimensions = np.intersect1d(np.array([int(key[10:]) for key in skeleta.keys()]), dimensions)
+        dimensions = np.intersect1d(
+            np.array([int(key[10:]) for key in skeleta.keys()]), dimensions
+        )
     # Generate mapping between factors and dimensions or check the one provided
-    if isinstance(factors,int):
-        factors={dim:factors for dim in dimensions}
+    if isinstance(factors, int):
+        factors = {dim: factors for dim in dimensions}
     else:
         assert isinstance(factors, dict), "factors must be int or dictionary"
-        assert np.isin(dimensions, np.array(list(factors.keys()))).all(), "all dimensions must be a key in factors"
+        assert np.isin(dimensions, np.array(list(factors.keys()))).all(), (
+            "all dimensions must be a key in factors"
+        )
 
     # Add bidirectional connections
-    generator=np.random.default_rng(seed)
-    rc_add={dim:((factors[dim]-1)*(rc_submatrix(skeleta[f'dimension_{dim}']).sum()))//2 for dim in dimensions}
-    print("Number of reciprocal connections added per dimension"); print(rc_add) # Remove or add verbose option
-    M=adj.copy()
+    generator = np.random.default_rng(seed)
+    rc_add = {
+        dim: ((factors[dim] - 1) * (rc_submatrix(skeleta[f"dimension_{dim}"]).sum()))
+        // 2
+        for dim in dimensions
+    }
+    print("Number of reciprocal connections added per dimension")
+    print(rc_add)  # Remove or add verbose option
+    M = adj.copy()
     for dim in dimensions:
-        M+=add_bidirectional_connections(skeleta[f'dimension_{dim}'], rc_add[dim], generator).astype(bool)
+        M += add_bidirectional_connections(
+            skeleta[f"dimension_{dim}"], rc_add[dim], generator
+        ).astype(bool)
     if return_skeleta:
         return M, skeleta
     else:
         return M
 
-def add_rc_connections(adj,n_rc, seed=0):
+
+def add_rc_connections(adj, n_rc, seed=0):
     """Function to turn a fixed amount of unidirectional connections of adj into reciprocal connections.
 
     Parameters
@@ -707,11 +761,13 @@ def add_rc_connections(adj,n_rc, seed=0):
     """
     # TODO: Move this function from utils and change dependencies
     from .rand_utils import add_bidirectional_connections
+
     # Add bidirectional connections
-    generator=np.random.default_rng(seed)
+    generator = np.random.default_rng(seed)
     return add_bidirectional_connections(adj, n_rc, generator).astype(bool)
 
-def add_connections(adj,nc, seed=0,sparse_mode=True, max_iter=30):
+
+def add_connections(adj, nc, seed=0, sparse_mode=True, max_iter=30):
     """Function add connections at random
 
     Parameters
@@ -730,26 +786,40 @@ def add_connections(adj,nc, seed=0,sparse_mode=True, max_iter=30):
     bool matrix
         Digraph with nc more edges than adj
     """
-    adj=adj.astype(bool)
+    adj = adj.astype(bool)
     # Add bidirectional connections
     if sparse_mode:
         # TODO: Search for more efficient way to do this
-        N=adj.shape[0]; E=adj.sum(); k=0 # Number nodes, target edges and iteration counter
-        while adj.sum()< E +nc: #target number of edges
-            if k>max_iter:
-                print("More than max_it iterations tried, increase number of iterations or try sparse_mode =False")
+        N = adj.shape[0]
+        E = adj.sum()
+        k = 0  # Number nodes, target edges and iteration counter
+        while adj.sum() < E + nc:  # target number of edges
+            if k > max_iter:
+                print(
+                    "More than max_it iterations tried, increase number of iterations or try sparse_mode =False"
+                )
                 break
-            den=(E+nc-adj.sum())/(N*N) #density of matrix added
+            den = (E + nc - adj.sum()) / (N * N)  # density of matrix added
             generator = np.random.default_rng(seed)
-            A=sp.random(*adj.shape, density=den, format='csr', dtype = 'bool', random_state = generator)
+            A = sp.random(
+                *adj.shape,
+                density=den,
+                format="csr",
+                dtype="bool",
+                random_state=generator,
+            )
             A.setdiag(0)
-            adj=adj+A; k+=1
+            adj = adj + A
+            k += 1
         adj.eliminate_zeros()
     else:
-        if sp.issparse(adj): adj=adj.toarray()
-        ul_ind = np.where(np.eye(*adj.shape) == 0) # non-diagonal indices
-        zero_ind=np.where(adj[ul_ind]==0)
+        if sp.issparse(adj):
+            adj = adj.toarray()
+        ul_ind = np.where(np.eye(*adj.shape) == 0)  # non-diagonal indices
+        zero_ind = np.where(adj[ul_ind] == 0)
         generator = np.random.default_rng(seed)
-        selection=zero_ind[0][generator.choice(zero_ind[0].shape[0], replace=False, size=nc)]
-        adj[(ul_ind[0][selection],ul_ind[1][selection])]=1
+        selection = zero_ind[0][
+            generator.choice(zero_ind[0].shape[0], replace=False, size=nc)
+        ]
+        adj[(ul_ind[0][selection], ul_ind[1][selection])] = 1
     return adj
