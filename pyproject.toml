@@ -5,8 +5,8 @@ description = "Methods for network analysis of graphs coming from brain models a
 authors = [
     "Daniela Egas Santander <daniela.egas.math@gmail.com>",
     "Christoph Pokorny <christoph.pokorny@openbraininstitute.org>",
-    "Jason Smith <jason.smith@ntu.ac.uk>"
-    "Michael Wolfgang Reimann <michael.reimann@epfl.ch>"]# am I missing someone?
+    "Jason Smith <jason.smith@ntu.ac.uk>",
+    "Michael Wolfgang Reimann <mwr@reimann.science>"]
 license = "AGPL-3.0-or-later"
 readme = "README.md"
 
@@ -33,7 +33,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.9, <4"
+python = ">=3.9, <3.13"
 tables = ">3.8"
 numpy = "*"
 pandas = "*"
