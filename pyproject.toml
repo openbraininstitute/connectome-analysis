@@ -1,19 +1,18 @@
 [tool.poetry]
 name = "connectome_analysis"
 version = "0.0.1"
-description = "Functions for network analysis of graphs coming brain models and activity on them"
+description = "Methods for network analysis of graphs coming from brain models and activity on them"
 authors = [
-    "Daniela Egas Santander <daniela.egassantander@epfl.ch>",
-    "Christoph Pokorny <christoph.pokorny@epfl.ch>",
-    "Michael Wolfgang Reimann <michael.reimann@epfl.ch>",
-    "Jason Smith <jason.smith@ntu.ac.uk>", #TODO: I make the list alpabhetical, am I missing someone?
-]
-license = "TO BE DECIDED"
+    "Daniela Egas Santander <daniela.egas.math@gmail.com>",
+    "Christoph Pokorny <christoph.pokorny@openbraininstitute.org>",
+    "Jason Smith <jason.smith@ntu.ac.uk>",
+    "Michael Wolfgang Reimann <mwr@reimann.science>"]
+license = "AGPL-3.0-or-later"
 readme = "README.md"
 
-documentation = "https://danielaegassan.github.io/connectome_analysis"
-homepage = "https://danielaegassan.github.io/connectome_analysis"
-repository = "https://github.com/danielaegassan/connectome_analysis"
+documentation = "https://openbraininstitute.github.io/connectome-analysis/"
+homepage = "https://openbraininstitute.github.io/connectome-analysis/"
+repository = "https://github.com/openbraininstitute/connectome-analysis.git"
 
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -21,9 +20,10 @@ classifiers = [
   "Operating System :: OS Independent",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.7",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
   "Topic :: Software Development :: Libraries :: Python Modules",
   "Typing :: Typed",
 ]
@@ -33,10 +33,10 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.8.3, <4"
+python = ">=3.9, <3.13"
+tables = ">3.8"
 numpy = "*"
 pandas = "*"
-tables = "*"
 scipy = "*"
 matplotlib = "*"
 progressbar ="2.5"
@@ -45,6 +45,8 @@ pyflagser ="*"
 bigrandomgraphs = ">=0.0.4"
 pyflagsercount = ">=0.2.41"
 networkx="*"
+scikit-network = "*"
+ipykernel = "^6.29.5"
 
 
 [tool.poetry.dev-dependencies]
