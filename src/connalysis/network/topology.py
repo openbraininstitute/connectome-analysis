@@ -1288,7 +1288,7 @@ def count_rc_edges_skeleta(adj=None, max_dim=-1, max_simplices=False,
 
 def bedge_counts(adjacency, simplices=None,
                  max_simplices = False, max_dim = -1, simplex_type = 'directed', ** kwargs):
-    """Counts the total number of edges in each position on the subgraphs defined by the nodes
+    r"""Counts the total number of edges in each position on the subgraphs defined by the nodes
     of the simplices listed in simplices.  If a simplex list is not passed, simplices are computed on
     the adjacency matrix.
 
@@ -1604,7 +1604,7 @@ def euler_characteristic(matrix):
 
 
 def tcc(matrix,center=0):
-    """Computes the transitive clustering coefficient of the graph induced by 
+    """Computes the transitive clustering coefficient of the graph induced by
             the neighbourhood of center in matrix
 
         Parameters
@@ -1643,7 +1643,7 @@ def tcc(matrix,center=0):
 
 
 def dc(matrix, center=0, coeff_index=2, nhbd=True):
-    """Computes the density coefficient of the graph induced by 
+    """Computes the density coefficient of the graph induced by
             the neighbourhood of center in matrix
 
         Parameters
@@ -1656,7 +1656,7 @@ def dc(matrix, center=0, coeff_index=2, nhbd=True):
         coeff_index : int
              The dimension to be computed, default=2
         nhbd : bool
-             If true then is assumed that matrix is the neighbourhood of center. 
+             If true then is assumed that matrix is the neighbourhood of center.
              If false the neighbourhood of center is computed and used, default= True.
 
         Returns
