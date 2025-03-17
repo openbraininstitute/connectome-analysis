@@ -7,11 +7,18 @@ on:
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/actions/python-poetry-env
-      - name: Publish to pypi
+      - name: Build
         run: |
-          poetry publish --build --no-interaction
+          poetry build --no-interaction
+      - name: Publish to Pypi
+        uses: pypa/gh-action-pypi-publish@release/v1
       - name: Deploy docs
         run: poetry run mkdocs gh-deploy --force
