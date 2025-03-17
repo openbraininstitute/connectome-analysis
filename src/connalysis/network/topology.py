@@ -1318,8 +1318,8 @@ def bedge_counts(adjacency, simplices=None,
 
     Notes
     -------
-    Every directed $k$-simplex $[v_o, v_1, \\ldots, v_k]$ defines as subgraph of the adjacency matrix, with edges
-    $v_i \\to v_j$ whenever $i\leq j$, but also possibly with ''reverse'' edges.  One can represent this structure
+    Every directed $k$-simplex $[v_o, v_1, \ldots, v_k]$ defines as subgraph of the adjacency matrix, with edges
+    $v_i \to v_j$ whenever $i\leq j$, but also possibly with ''reverse'' edges.  One can represent this structure
     with a non-symmetric $(k+1, k+1)$-matrix with `1`'s for every edge in the subgraph.  The output of this function
     gives for each dimension the sum of all these matrices over all the simplices provided in `simplices` or over
     all the simplices in the adjacency matrix if none is provided.  The lower triangular part of these matrices is
@@ -1605,7 +1605,7 @@ def euler_characteristic(matrix):
 
 def tcc(matrix,center=0):
     """Computes the transitive clustering coefficient of the graph induced by
-            the neighbourhood of center in matrix
+        the neighbourhood of center ``center`` in the matrix
 
         Parameters
         ----------
@@ -1644,7 +1644,7 @@ def tcc(matrix,center=0):
 
 def dc(matrix, center=0, coeff_index=2, nhbd=True):
     """Computes the density coefficient of the graph induced by
-            the neighbourhood of center in matrix
+        the neighbourhood of center ``center`` in the matrix
 
         Parameters
         ----------

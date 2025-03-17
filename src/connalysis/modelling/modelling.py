@@ -189,6 +189,7 @@ def conn_prob_2nd_order_model(adj, node_properties, **kwargs):
     See Also
     --------
     conn_prob_2nd_order_pathway_model : 2nd-order model building function wrapper for different source/target node populations
+    
     conn_prob_model : Underlying generic model building function wrapper
 
     References
