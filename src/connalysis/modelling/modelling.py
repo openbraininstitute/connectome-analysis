@@ -132,7 +132,7 @@ def run_batch_model_building(adj_file, nrn_file, cfg_file, N_split=None, part_id
 ###################################################################################################
 
 def conn_prob_2nd_order_model(adj, node_properties, **kwargs):
-    """Wrapper function for 2nd-order probability model building to be used within a processing pipeline, optionally for multiple random subsets of neurons.
+    r"""Wrapper function for 2nd-order probability model building to be used within a processing pipeline, optionally for multiple random subsets of neurons.
 
     Parameters
     ----------
@@ -189,6 +189,7 @@ def conn_prob_2nd_order_model(adj, node_properties, **kwargs):
     See Also
     --------
     conn_prob_2nd_order_pathway_model : 2nd-order model building function wrapper for different source/target node populations
+    
     conn_prob_model : Underlying generic model building function wrapper
 
     References
@@ -263,7 +264,7 @@ def conn_prob_2nd_order_pathway_model(adj, node_properties_src, node_properties_
 
 
 def conn_prob_3rd_order_model(adj, node_properties, **kwargs):
-    """Wrapper function for 3rd-order probability model building to be used within a processing pipeline, optionally for multiple random subsets of neurons.
+    r"""Wrapper function for 3rd-order probability model building to be used within a processing pipeline, optionally for multiple random subsets of neurons.
 
     Parameters
     ----------
@@ -1062,7 +1063,7 @@ def _extract_2nd_order(adj, node_properties, bin_size_um=100, max_range_um=None,
 
             # Compute distance matrix
             dist_mat_split = _compute_dist_matrix(pos_table[split_sel, :], pos_table)
-            
+
             # Extract distance-dependent connection counts
             _, count_conn_split, count_all_split = _extract_dependent_p_conn(adj[split_sel, :], [dist_mat_split], [dist_bins])
             count_conn += count_conn_split

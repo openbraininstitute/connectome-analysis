@@ -1288,7 +1288,7 @@ def count_rc_edges_skeleta(adj=None, max_dim=-1, max_simplices=False,
 
 def bedge_counts(adjacency, simplices=None,
                  max_simplices = False, max_dim = -1, simplex_type = 'directed', ** kwargs):
-    """Counts the total number of edges in each position on the subgraphs defined by the nodes
+    r"""Counts the total number of edges in each position on the subgraphs defined by the nodes
     of the simplices listed in simplices.  If a simplex list is not passed, simplices are computed on
     the adjacency matrix.
 
@@ -1318,8 +1318,8 @@ def bedge_counts(adjacency, simplices=None,
 
     Notes
     -------
-    Every directed $k$-simplex $[v_o, v_1, \\ldots, v_k]$ defines as subgraph of the adjacency matrix, with edges
-    $v_i \\to v_j$ whenever $i\leq j$, but also possibly with ''reverse'' edges.  One can represent this structure
+    Every directed $k$-simplex $[v_o, v_1, \ldots, v_k]$ defines as subgraph of the adjacency matrix, with edges
+    $v_i \to v_j$ whenever $i\leq j$, but also possibly with ''reverse'' edges.  One can represent this structure
     with a non-symmetric $(k+1, k+1)$-matrix with `1`'s for every edge in the subgraph.  The output of this function
     gives for each dimension the sum of all these matrices over all the simplices provided in `simplices` or over
     all the simplices in the adjacency matrix if none is provided.  The lower triangular part of these matrices is
@@ -1604,8 +1604,8 @@ def euler_characteristic(matrix):
 
 
 def tcc(matrix,center=0):
-    """Computes the transitive clustering coefficient of the graph induced by 
-            the neighbourhood of center in matrix
+    """Computes the transitive clustering coefficient of the graph induced by
+        the neighbourhood of center ``center`` in the matrix
 
         Parameters
         ----------
@@ -1643,8 +1643,8 @@ def tcc(matrix,center=0):
 
 
 def dc(matrix, center=0, coeff_index=2, nhbd=True):
-    """Computes the density coefficient of the graph induced by 
-            the neighbourhood of center in matrix
+    """Computes the density coefficient of the graph induced by
+        the neighbourhood of center ``center`` in the matrix
 
         Parameters
         ----------
@@ -1656,7 +1656,7 @@ def dc(matrix, center=0, coeff_index=2, nhbd=True):
         coeff_index : int
              The dimension to be computed, default=2
         nhbd : bool
-             If true then is assumed that matrix is the neighbourhood of center. 
+             If true then is assumed that matrix is the neighbourhood of center.
              If false the neighbourhood of center is computed and used, default= True.
 
         Returns

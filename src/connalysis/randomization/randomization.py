@@ -82,7 +82,7 @@ def ER_model(adj, threads=8, seed=(None,None)):
     coo matrix
         Matrix of the generated control
 
-    
+
     Raises
     ------
     AssertionError
@@ -150,7 +150,7 @@ def run_SBM(n, probs, blocks, threads=8, seed=(None,None)):
 
 
 def run_DD2(n,a,b,xyz,threads=8, seed=(None,None)):
-    """Creates a random digraph using the 2nd-order probability model.
+    r"""Creates a random digraph using the 2nd-order probability model.
 
     Parameters
     ----------
@@ -254,7 +254,7 @@ def run_DD2_model(adj, node_properties,
 
 
 def run_DD3(n,a1,b1,a2,b2,xyz,depths,threads=8, seed=(None,None)):
-    """Creates a random digraph using the 2nd-order probability model.
+    r"""Creates a random digraph using the 2nd-order probability model.
 
     Parameters
     ----------
@@ -297,7 +297,7 @@ def run_DD3(n,a1,b1,a2,b2,xyz,depths,threads=8, seed=(None,None)):
 
 
 def run_DD2_block_pre(n, probs, blocks, xyz, threads=8, seed=(None,None)):
-    """Creates a random digraph using a combination of the stochastic block model
+    r"""Creates a random digraph using a combination of the stochastic block model
        and the 2nd order distance dependent model. Such that the probability of an edge
        is given by the distance dependent equation, but the parameters of that equation
        vary depending on the block of the source of the edge.
@@ -351,7 +351,7 @@ def run_DD2_block_pre(n, probs, blocks, xyz, threads=8, seed=(None,None)):
 
 
 def run_DD2_block(n, probs, blocks, xyz, threads, seed=(None,None)):
-    """Creates a random digraph using a combination of the stochastic block model
+    r"""Creates a random digraph using a combination of the stochastic block model
        and the 2nd order distance dependent model. Such that the probability of an edge
        is given by the distance dependent equation, but the parameters of that equation
        vary depending on the block of the source of the edge and block of the target.
