@@ -21,4 +21,4 @@ jobs:
       - name: Publish to Pypi
         uses: pypa/gh-action-pypi-publish@release/v1
       - name: Deploy docs
-        run: mkdocs gh-deploy
+        run: poetry run mkdocs gh-deploy --force
