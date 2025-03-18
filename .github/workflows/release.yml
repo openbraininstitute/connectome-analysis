@@ -10,7 +10,7 @@ jobs:
 
     permissions:
       id-token: write
-      contents: read
+      contents: write
 
     steps:
       - uses: actions/checkout@v2
@@ -21,4 +21,4 @@ jobs:
       - name: Publish to Pypi
         uses: pypa/gh-action-pypi-publish@release/v1
       - name: Deploy docs
-        run: poetry run mkdocs gh-deploy --force
+        run: mkdocs gh-deploy
