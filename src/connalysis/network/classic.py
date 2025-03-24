@@ -9,6 +9,7 @@ from scipy.stats import hypergeom
 from scipy.stats import binom
 from scipy.linalg import eigvals
 import scipy.sparse as sp
+from scipy.spatial import KDTree
 #TODO: MODIFY THE IMPORTS TO EXTERNAL IMPORTS
 
 from .topology import node_degree, rc_submatrix, underlying_undirected_matrix
@@ -153,13 +154,100 @@ def density(adj, type="directed", skip_symmetry_check=False):
             if (adj!=adj.T).nnz >0:
                 print("The graph is directed. Taking the underlying undirected graph")
                 adj=underlying_undirected_matrix(adj)
-        return 2*adj.sum() / (n*(n-1))
-    elif type=="directed":
-        return adj.sum() / (n*(n-1))
     if type=="reciprocal":
         adj=rc_submatrix(adj)
-        return 2*adj.sum() /  (n*(n-1))
-    
+    return adj.sum() /  (n*(n-1))
+
+
+def get_pairs_within(m, v, cols=["x", "y"], max_dist=100):
+    """Returns a matrix of the paris of nodes within distance `max_dist` of each other.
+
+        Parameters
+        ----------
+        m : array or sparse matrix
+            Adjacency matrix of the graph
+        v : DataFrame or tuple
+            DataFrame with the coordinates of the nodes if m is square and has the same source and target nodes. 
+            If a tuple is passed, it should contain two DataFrames, one for the source nodes and one for the target nodes.        
+        cols : list
+            Columns of the DataFrame containing the coordinates of the nodes.
+        max_dist : float
+            Maximum distance between nodes to be considered connected.        
+
+        Returns
+        -------
+        sparse matrix
+            Boolean matrix with 1 indicating the pairs of nodes within `max_dist` of each other, 
+            excluding the diagonal for square matrices.
+    """
+    if isinstance(v, tuple):
+        vpre, vpost = v
+    else:
+        vpre = v; vpost = v
+    tree = KDTree(vpre[cols])
+    pairs = tree.query_ball_point(vpost[cols], max_dist)
+    indptr = np.cumsum([0] + [len(_x) for _x in pairs])
+    pairs_mat = sp.csc_matrix((np.ones(indptr[-1], dtype=bool),
+                                   np.hstack(pairs), indptr),
+                                   shape=m.shape)
+    if not isinstance(v,tuple):
+        pairs_mat.setdiag(0) # Don't consider edges from i to i when pre and post subpopulations are the same
+    if indptr[-1] == 0:
+        return np.NaN
+    return pairs_mat.astype(bool)
+
+
+def connection_probability_within(m, v, cols=["x", "y"], max_dist=100, type='directed', skip_symmetry_check= False):
+    """Returns the average density of submatrices of nodes within distance `max_dist` of each node in `m`.
+
+        Parameters
+        ----------
+        m : array or sparse matrix
+            Adjacency matrix of the graph
+        v : DataFrame or tuple
+            DataFrame with the coordinates of the nodes if m is square and has the same pre and post nodes. 
+            If a tuple is passed, it should contain two DataFrames, one for the source nodes and one for the target nodes.
+        cols : list
+            Columns of the DataFrame containing the coordinates of the nodes.
+        max_dist : float
+            Maximum distance between nodes to be considered connected.        
+        type : str {'directed', 'undirected', 'reciprocal'}
+            The type of the graph considered for the computation.
+            If 'directed', the density as a directed graph is computed.
+            If 'undirected', the density of the underlying undirected graph is computed. Only possible if the matrix is square.
+            If 'reciprocal', the density of the underlying reciprocal graph is computed. Only possible if the matrix is square.
+        skip_symmetry_check : bool
+            If `True`, it will skip the check for symmetry of the matrix.
+
+        Returns
+        -------
+        float
+            The average density of the submatrices.
+    """
+    # Get coordinates of nodes and their nearest neighbors
+    pairs_mat=get_pairs_within(m, v, cols=cols, max_dist=max_dist)
+    if pairs_mat is np.NaN:
+        return np.NaN
+    else:
+        if type=='reciprocal':
+            assert m.shape[0]==m.shape[1], "The matrix must be square to compute the reciprocal connectivity"
+            m=rc_submatrix(m).tocsc()
+        elif type=='undirected':
+            assert m.shape[0]==m.shape[1], "The matrix must be square to compute the undirected connectivity"
+            if not skip_symmetry_check:
+                if (m!=m.T).nnz >0:
+                    print("The graph is directed. Taking the underlying undirected graph")
+                    m=underlying_undirected_matrix(m)
+            m=sp.csc_matrix(m)
+        elif type=='directed':
+            m=sp.csc_matrix(m)
+        else:
+            print(type)
+            raise ValueError("Type must be 'directed', 'undirected' or 'reciprocal'")
+        return m[pairs_mat].astype(bool).mean() 
+
+
+
 ###### TODO: Code in this block needs docstrings ######
 
 def __make_expected_distribution_model_first_order__(adj, direction="efferent"):
@@ -256,21 +344,8 @@ def common_neighbor_connectivity_bias(adj, neuron_properties=None, direction="ef
     mdl_distance = sm_result.params.get("Distance", 0.0)
     return pval, mdl_added / mdl_intercept, 100 * mdl_distance / mdl_intercept
 
-###Computing connection probabilities
 
-def connection_probability_within(adj, neuron_properties, max_dist=200, min_dist=0,
-                                  columns=["ss_flat_x", "ss_flat_y"]):
-    #TODO: Does neuron_properties here assumes the right data structure?
-    if isinstance(neuron_properties, tuple):
-        nrn_pre, nrn_post = neuron_properties
-    else:
-        nrn_pre = neuron_properties;
-        nrn_post = neuron_properties
-    D = distance.cdist(nrn_pre[columns], nrn_post[columns])
-    mask = (D > min_dist) & (D <= max_dist)  # This way with min_dist=0 a neuron with itself is excluded
-    return adj[mask].mean()
-
-#TODO ADD CODE FROM CLUSTER TO COMPUTE PROBABILITY OF CONNECTION PER PATHWAY OR ANY OTHER PROPERTIE ON THE NEURON_PROPERTY.
+#TODO ADD CODE FROM CLUSTER OR WITH CONNECTOM UTILITIES CODE TO COMPUTE PROBABILITY OF CONNECTION PER PATHWAY OR ANY OTHER PROPERTIE ON THE NEURON_PROPERTY.
 
 def gini_curve(m, nrn, direction='efferent'):
     m = m.tocsc()
