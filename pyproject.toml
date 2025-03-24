@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "connectome_analysis"
-version = "1.0.0"
+version = "1.0.1"
 description = "Methods for network analysis of graphs coming from brain models and activity on them"
 authors = [
     "Daniela Egas Santander <daniela.egas.math@gmail.com>",
