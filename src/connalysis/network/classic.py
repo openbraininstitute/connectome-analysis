@@ -193,7 +193,7 @@ def get_pairs_within(m, v, cols=["x", "y"], max_dist=100):
     if not isinstance(v,tuple):
         pairs_mat.setdiag(0) # Don't consider edges from i to i when pre and post subpopulations are the same
     if indptr[-1] == 0:
-        return np.NaN
+        return np.nan
     return pairs_mat.astype(bool)
 
 
@@ -226,8 +226,8 @@ def connection_probability_within(m, v, cols=["x", "y"], max_dist=100, type='dir
     """
     # Get coordinates of nodes and their nearest neighbors
     pairs_mat=get_pairs_within(m, v, cols=cols, max_dist=max_dist)
-    if pairs_mat is np.NaN:
-        return np.NaN
+    if pairs_mat is np.nan:
+        return np.nan
     else:
         if type=='reciprocal':
             assert m.shape[0]==m.shape[1], "The matrix must be square to compute the reciprocal connectivity"
