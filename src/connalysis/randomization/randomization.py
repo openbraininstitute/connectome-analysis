@@ -12,6 +12,10 @@ import logging
 import numpy as np
 import scipy.sparse as sp
 import bigrandomgraphs as gm
+import pandas as pd
+
+from connalysis.randomization.rand_utils import _evaluate_probs, _evaluate_probs_less_random
+
 LOG = logging.getLogger("connectome-analysis-randomization")
 LOG.setLevel("INFO")
 logging.basicConfig(format="%(asctime)s %(levelname)-8s %(message)s",
@@ -753,3 +757,123 @@ def add_connections(adj,nc, seed=0,sparse_mode=True, max_iter=30):
         selection=zero_ind[0][generator.choice(zero_ind[0].shape[0], replace=False, size=nc)]
         adj[(ul_ind[0][selection],ul_ind[1][selection])]=1
     return adj
+
+def stochastic_spread_model(M, n_steps=100,
+                            n_protected=0, q=10.0, 
+                            tgt_level="individual",
+                            decay=1.0,
+                            sum_exclusion=True,
+                            return_history=False):
+    """
+    Builds a stochastic spread graph. See https://doi.org/10.1101/2025.08.21.671478
+
+    Parameters
+    ----------
+    M : sparse.matrix
+        Adjacency matrix of the underlying graph to spread on. If data type is float then the weight
+        specifies the probability that the corresponding edge is crossed in a step. This weight / probability
+        is further scaled if parameter q is specified. If data type is bool, then q _must_ be specified.
+    n_steps : int
+        Maximum number of steps to evaluate. Should be picked `large enough` that the spreading process
+        terminates naturally from lack of new nodes instead of reaching this maximum.
+    n_protected : int
+        Number of initial steps to take with reduced stochasticity. For this number of steps the process 
+        for a given source node will spread to exactly the expected number of nodes instead of a randomly
+        determined number. This avoids a large number of source nodes with zero out-degree. Set to 0 to
+        not use this feature.
+    q : float 
+        Sets the expected number of nodes to spread to in each step. This is done by scaling the weights in
+        M with weights dynamically determined in each step. Set to None to not use this feature.
+    tgt_level : str
+        One of "mean" or "individual". Specifies how parameter q is interpreted. If "individual", then one 
+        scaling factor per source node is calculated. If "mean", then one global factor is used. If q is
+        set to None, then this is ignored. Using "mean" leads to more diverse degree distributions.
+    decay : float
+        Must be between 0 and 1. Paramter q is multiplied by this value after each step, reducing its value.
+        This leads to shorter degree distributions.
+    sum_exclusion : bool
+        Determines how the node exclusion rule is updated. If True, then once a candidate node has been
+        rejected once from spread it can not be spread to in future steps. If False, then it is only 
+        excluded in the next step.
+    return_history : bool
+        If True, then a second output is returned (see below).
+    
+    Returns
+    ----------
+    full_instance : sparse.matrix
+        Adjacency matrix of the output graph
+    history : list
+        Optional output only returned if `return_history` is True. List specifying for each evaluated
+        step the mean number of nodes that the process spread to. To be used to improve parameter fitting or
+        for debugging.
+    """
+    # Checking and setting up input variables
+    if M.dtype != bool:
+        if np.any(M.data > 1.0):
+            raise ValueError("Weights in input matrix must be <= 1.0!")
+    else:
+        if q is None:
+            raise ValueError("If q is set to None, then M must specify probabilities (float between 0 and 1)!")
+    if tgt_level not in ["mean", "individual"]:
+        raise ValueError(f"Unknown value for tgt_level: {tgt_level}. Expected one of ['mean', 'individual']!")
+    if (decay < 0) or (decay > 1.0):
+        raise ValueError("Parameter decay must be between 0 and 1!")
+    sum_exclusion = bool(sum_exclusion)
+
+    # Setting up the initial
+    exclusion = sp.coo_matrix(([], ([], [])), shape=M.shape)
+    initial = sp.diags(
+        diagonals=np.ones(M.shape[0]),
+        offsets=0, shape=M.shape, format="csr"
+    )
+    state = initial
+    M = M.transpose()
+
+    # Set up output lists
+    row = []
+    col = []
+    data = []
+    history = []
+    
+    # Main loop
+    for _step in range(n_steps):
+        # Where the process can spread to. Subtracting exclusion ensures values < 0
+        candidates = state * M - 1E6 * (exclusion + initial)
+        candidates.data = np.minimum(np.maximum(candidates.data, 0), 1.0)
+
+        # Scaling of spread probabilities based on configuration
+        if q is not None:
+            if tgt_level == "mean":
+                csum = np.array(candidates.sum(axis=1))[:, 0]
+                fac = q * np.ones(M.shape[0]) / csum[csum > 0].mean()
+            else:
+                fac = q / np.array(candidates.sum(axis=1) + 1E-3)[:, 0]
+            q = q * decay
+        else:
+            fac = None
+            
+        # Take a new step
+        new_state = _evaluate_probs(candidates, adjust=fac, less_random=(_step < n_protected))
+        row.extend(new_state.row); col.extend(new_state.col); data.extend(_step * np.ones(new_state.nnz, dtype=int))
+        new_state = new_state.tocsr()
+
+        # Step added to history
+        h_i = new_state.sum(axis=1).mean()  # Mean number added per original neuron
+        history.append(h_i)
+
+        # Update exclusion rule
+        if sum_exclusion:
+            exclusion = exclusion + state
+        else:
+            exclusion = state
+        state = new_state
+
+    # Create output matrix
+    full_instance = sp.coo_matrix((
+        np.ones(len(row), dtype=bool),
+        (row, col)
+    ), shape=M.shape).tocsr()
+
+    if return_history:
+        return full_instance, history
+    return full_instance

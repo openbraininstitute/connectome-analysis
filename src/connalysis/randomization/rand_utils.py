@@ -126,3 +126,69 @@ def add_bidirectional_connections(sparse_matrix: sp.csc_matrix, bedges_to_add: i
     dedge = dedge.tocoo(copy=False)  # Easier to subsample
     dedge = subsampled_matrix(dedge, bedges_to_add, generator)
     return sparse_matrix + dedge.T
+
+
+def _evaluate_probs_less_random(p_mat, adjust=None):
+    """
+    Evaluates a single spread step using the `less random` method.
+
+    Parameters
+    ----------
+    p_mat : sparse.matrix
+        Represents the current state of the spread. Each row corresponds to
+        a node to spread from. Columns that we can spread to have positive entries, columns that we already
+        spread to or that are excluded on account of being candidates from earlier steps have negative values.
+        All others are zero.
+    adjust : numpy.array
+        Optional array of weight vectors. Scales the values of p_mat of the corresponding rows. In the manuscript
+        (see above) this is 1 / r.
+    """
+    p_mat = p_mat.tocsr()
+    n_pick = np.array(p_mat.sum(axis=1))[:, 0]
+    if adjust is not None:
+        n_pick = n_pick * adjust
+    n_pick = np.round(n_pick).astype(int)
+
+    indptr_out = [0]
+    picked = []
+    for a, b, c in zip(p_mat.indptr[:-1], p_mat.indptr[1:], n_pick):
+        p = p_mat.data[a:b] / p_mat.data[a:b].sum()
+        c = np.minimum(c, (p > 0).sum())
+        indptr_out.append(c)
+        if c > 0:
+            picked.append(np.random.choice(p_mat.indices[a:b], c, p=p, replace=False))
+    picked = np.hstack(picked)
+    indptr_out = np.cumsum(indptr_out)
+    m_out = sp.csr_matrix((np.ones(indptr_out[-1], dtype=bool), 
+                            np.hstack(picked),
+                            indptr_out),
+                            shape=p_mat.shape).tocoo()
+    return m_out
+
+
+def _evaluate_probs(p_mat, adjust=None, less_random=False):
+    """
+    Evaluates a single spread step when building a stochastic spread graph (https://doi.org/10.1101/2025.08.21.671478)
+
+    Parameters
+    ----------
+    p_mat : sparse.matrix
+        Represents the current state of the spread. Each row corresponds to
+        a node to spread from. Columns that we can spread to have positive entries, columns that we already
+        spread to or that are excluded on account of being candidates from earlier steps have negative values.
+        All others are zero.
+    adjust : numpy.array
+        Optional array of weight vectors. Scales the values of p_mat of the corresponding rows. In the manuscript
+        (see above) this is 1 / r.
+    less_random : bool
+        If set to true, then the less stochastic version of the spread is used. That is, for each source node 
+        (row in p_mat) the process spreads to exactly the expected number of nodes instead of a random number.
+    """
+    if less_random:
+        return _evaluate_probs_less_random(p_mat, adjust=adjust)
+    p_mat = p_mat.tocoo()
+    thresh = p_mat.data
+    if adjust is not None:
+        thresh = thresh * adjust[p_mat.row]
+    _v = np.random.rand(p_mat.nnz) < thresh
+    return sp.coo_matrix((np.ones(_v.sum()), (p_mat.row[_v], p_mat.col[_v])), shape=p_mat.shape)
