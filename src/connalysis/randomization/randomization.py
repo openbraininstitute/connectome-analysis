@@ -14,7 +14,12 @@ import scipy.sparse as sp
 import bigrandomgraphs as gm
 import pandas as pd
 
+from scipy.spatial import KDTree
+
 from connalysis.randomization.rand_utils import _evaluate_probs, _evaluate_probs_less_random
+from connalysis.randomization.rand_utils import (
+    _connection_df_to_csc_matrix, _direction_or_distance_dependent_w, _evaluate_per_node_weights
+)
 
 LOG = logging.getLogger("connectome-analysis-randomization")
 LOG.setLevel("INFO")
@@ -757,6 +762,159 @@ def add_connections(adj,nc, seed=0,sparse_mode=True, max_iter=30):
         selection=zero_ind[0][generator.choice(zero_ind[0].shape[0], replace=False, size=nc)]
         adj[(ul_ind[0][selection],ul_ind[1][selection])]=1
     return adj
+
+
+def random_geometric_model(pts, pts_x=None, n_neighbors=None, dist_neighbors=None, n_pick=None,
+                            p_pick=None, scale_axes=None,
+                            directionality_fac=0.0, directionality_axis=None,
+                            distance_func=None,
+                            custom_w_out=None, custom_w_in=None,
+                            no_diag=True, mirror=False):
+    """
+    Generates a directed random geometric graph with some optional modifications. The modifications introduce
+    biases with respect to which nodes will be connected.
+
+    Parameters
+    ----------
+    pts : numpy.array
+        Shape: n x m, where n is the number of nodes and m the number of dimensions. The locations of the
+        vertices that the random geometric graph is to be constructed on.
+    pts_x : numpy.array
+        Optional input for a second set of vertex locations. If provided, edges from `pts` to `pts_x` will
+        be placed according to the random geometric rules. That is, a random geometric graph on the 
+        concatenation of `pts` and `pts_x` is constructed, but only the entries in the top right part of the
+        adjacency matrix are kept and the rest set to 0.
+    n_neighbors : int
+        One way of specifying the potential set of partners for each node. If specified, the `n_neighbors` 
+        nearest neighbors of a node are potential partners for outgoing connections to be placed.
+    dist_neighbors : float
+        The other way to specify the potential set of partners. If specified, all vertices within that distance
+        of a node are potential partners for outgoing connections to be placed. 
+        Either `n_neighbors` or `dist_neighbors` must be used. If both or neither are used, an Exception is raised.
+    n_pick : int
+        One way of specifying the actual number of vertices that are connected from each node. If specified, 
+        `n_pick` vertices from the candidates (see above) are randomly picked and outgoing connections placed
+        to all of them. If the number of candidates for a vertex is smaller than `n_pick`, then simply all 
+        candidates will be picked and no warning or exception raised.
+    p_pick : float
+        The other way to specify the actual number of vertices that are connected from each node. If specified,
+        each candidate (see above) will be picked with probability `p_pick`; if picked a connection will be
+        placed between them.
+        Either `n_pick` or `p_pick` must be used. If both or neither are used, and Exception is raised.
+    scale_axes : numpy.array
+        Shape: (m, ), where m is the number of dimensions. One way of biasing which pairs are connected. 
+        If used, distances along each dimension are scaled by the corresponding factor in `scale_axes` before
+        candidates for connection are picked, i.e., before `n_neighbors` or `dist_neighbors` is evaluated.
+    directionality_axis : numpy.array
+        Shape: (m, ), where m is the number of dimensions. Another way of biasing which pairs are connected.
+        This introduces a directionality bias, i.e., connections are more likely if their direction aligns with
+        a specified vector and less likely if their direction is in the opposite direction of the vector. This
+        is calculated as the dot product of the direction vector of the potential connection with 
+        `directionality_axis`. 
+        This is evaluated _after_ candidates have been picked and only affects the selection of actual connections
+        from the candidates (see `n_neighbors` / `dist_neighbors` and `n_pick` / `p_pick`) above.
+    directionality_fac : float
+        Must be between -1 and 1. This specifies how much the dot product calculated using `directionality_axis`
+        (see above) is weighed to calculate a bias. Formally:
+        w = (delta o directionality_axis) * directionality_fac + 1,
+        where o denotes the vector dot product, delta is the vector from the source to the target vertex of a
+        potential connection. 
+        Note that these are relative weights that are scaled to fulfill the constraints
+        on the number of connections to pick given by `n_pick` or `p_pick`.
+        Note that this does NOT affect the selection of candidates, parameterized by `n_neighbors` or 
+        `dist_neighbors`, but only the selection from the candidates.
+        Directionality bias cannot be combined with distance bias (see below).
+    distance_func : function
+        A function that is to be evaluated on pairwise distances of candidate pairs. Another way of biasing 
+        which pairs are connected. The function takes a distance as input and returns a relative weight. 
+        Note that these are relative weights that are scaled to fulfill the constraints on the number of
+        connections to pick given by `n_pick` or `p_pick`. 
+        Note that this does NOT affect the selection of candidates, parameterized by `n_neighbors` or 
+        `dist_neighbors`, but only the selection from the candidates.
+        Cannot be combined with a directionality bias (see above).
+    custom_w_out : numpy.array
+        Shape: (n, ). For details, see below.
+    custom_w_in : numpy.array
+        Shape: (n, ). custom_w_out and custom_w_in, if used, provide per-node biases for the selection of
+        connection from candidates. Simply, for all potential outgoing connections from vertex i, entry
+        custom_w_out[i] is used as a relative weight that is multiplied with any other potential weight.
+        Similarly for custom_w_in[i] for potential incoming connections.
+        Note that this does NOT affect the selection of candidates, parameterized by `n_neighbors` or 
+        `dist_neighbors`, but only the selection from the candidates.
+    no_diag : bool
+        If set to False, connections from a vertex to itself are allowed to be placed.
+    symmetrize : bool
+        If set to True, the output matrix is made symmetrical with the following strategy: If a connection
+        from vertex i to j exists, a connection is also placed from j to i if it does not already exist.
+        This is ignored without warning if `pts_x` is specified.
+    """
+    # Check inputs
+    if (n_neighbors is not None) and (dist_neighbors is not None):
+        raise ValueError("Cannot specify both n_neighbors and dist_neighbors!")
+    if (n_neighbors is None) and (dist_neighbors is None):
+        raise ValueError("Must specify either n_neighbors or dist_neighbors!")
+    if (n_pick is not None) and (p_pick is not None):
+        raise ValueError("Cannot specify both n_pick and p_pick!")
+    if (n_pick is None) and (p_pick is None):
+        raise ValueError("Must specify either n_pick or p_pick!")
+    if p_pick is not None:
+        if (p_pick < 0) or (p_pick > 1.0):
+            raise ValueError(f"p_pick must be between 0 and 1! Found: {p_pick}")
+    if (directionality_fac < -1) or (directionality_fac > 1):
+        raise ValueError("directionality_fac must be between -1 and 1!")
+    if (directionality_axis is not None) and (distance_func is not None):
+        raise ValueError("Cannot specify both directionality bias and custom distance function!")
+
+    # Evaluation of optional inputs
+    mirror = bool(mirror)
+    if pts_x is None:
+        pts_x = pts
+        mirror = False
+    if scale_axes is not None:
+        pts = pts / np.array(scale_axes).reshape((1, -1))
+        pts_x = pts_x / np.array(scale_axes).reshape((1, -1))
+    shape = (len(pts_x), len(pts))
+    
+    # Generate candidates for connections based on number or max. distance
+    kd = KDTree(pts)
+    if n_neighbors is not None: # Case 1: number of neighbor candidates given
+        if no_diag:
+            _, idx = kd.query(pts_x, np.arange(2, 2 + n_neighbors))  # len(idx_x) x n_neighbors
+        else:
+            _, idx = kd.query(pts_x, np.arange(1, 1 + n_neighbors))  # len(idx_x) x n_neighbors
+    elif dist_neighbors is not None: # Case 2: max. distance for neighbor candidates given
+        idx = list(kd.query_ball_point(pts_x, dist_neighbors))
+        if no_diag:
+            idx = [np.setdiff1d(_idx, _i) for _i, _idx in enumerate(idx)]  # This is slow. Filter after the fact?
+    
+    # Pick from candidates. Step 1: Calculate bias weights (if any)
+    # Step 1a: Weights based on distance or direction.
+    w = _direction_or_distance_dependent_w(pts_x, pts, idx, distance_func=distance_func,
+                                           directionality_axis=directionality_axis,
+                                           directionality_fac=directionality_fac)
+    # Step 1b: Weights based on per-node biases (in- or out-degree)
+    if custom_w_in is not None and custom_w_out is not None:
+        cust_w = _evaluate_per_node_weights(custom_w_out, custom_w_in, idx)
+        cust_w = cust_w / cust_w.mean()
+        w = w * cust_w
+    
+    # Step 2: Actually pick connections based on constraints (n_pick, p_pick) and weights.
+    if p_pick is not None:
+        wmean = w.mean()
+        picker_func = lambda _x: _x.loc[np.random.rand(len(_x)) < (p_pick * _x / wmean)]
+    elif n_pick is not None:
+        picker_func = lambda _x: _x.iloc[np.random.choice(len(_x), np.minimum(n_pick, len(_x)),
+                                                             replace=False,
+                                                             p=_x / _x.sum())]
+    w = w.groupby("neuron").apply(picker_func)
+
+    # Assemble output into sparse matrix.
+    if len(w) > 0: # If any connection exists.
+        w = w.droplevel(0)
+        return _connection_df_to_csc_matrix(w, mirror=mirror, shape=shape)
+    # Fallback: Return empty matrix.
+    return sp.csc_matrix((len(pts), len(pts)), dtype=bool)
+
 
 def stochastic_spread_model(M, n_steps=100,
                             n_protected=0, q=10.0, 

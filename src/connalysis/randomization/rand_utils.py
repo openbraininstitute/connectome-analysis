@@ -4,6 +4,7 @@
 
 import numpy as np
 import scipy.sparse as sp
+import pandas as pd
 
 from typing import List, Union
 from connalysis.network.topology import rc_submatrix
@@ -192,3 +193,119 @@ def _evaluate_probs(p_mat, adjust=None, less_random=False):
         thresh = thresh * adjust[p_mat.row]
     _v = np.random.rand(p_mat.nnz) < thresh
     return sp.coo_matrix((np.ones(_v.sum()), (p_mat.row[_v], p_mat.col[_v])), shape=p_mat.shape)
+
+def _connection_df_to_csc_matrix(w, mirror=True, shape=None):
+    """
+    Transforms a representation of a graph as a DataFrame of edges to a scipy.sparse.csc_matrix.
+    Used for the generation of random geometric graphs.
+
+    Parameters
+    ----------
+    w : pandas.DataFrame
+        Each row corresponds to a connection, columns "neuron" and "i" specify the source and target
+        vertex.
+    mirror : bool
+        If set to True, the output matrix is made symmetrical with the following strategy: If a connection
+        from vertex i to j exists, a connection is also placed from j to i if it does not already exist.
+    shape : tuple
+        The shape of the output matrix. If not provided, it will be guessed based on the indices in `w`.
+    """
+    if shape is None:
+        raise ValueError("Must provide shape")
+    indices = w.index.to_frame().reset_index(drop=True)
+    idy = indices["neuron"].values
+    idx = indices["i"].values
+    w = w.values
+    if mirror:
+        _idx = np.hstack([idx, idy])
+        _idy = np.hstack([idy, idx])
+        _w = np.hstack([w, w])
+        M = sp.coo_matrix((_w, (_idy, _idx)),
+                              shape=shape).tocsc()
+    else:
+        M = sp.coo_matrix((w, (idy, idx)),
+                              shape=shape).tocsc()
+    return M
+
+def _direction_or_distance_dependent_w(pts_src, pts_tgt, idx,
+                                       directionality_fac=0, directionality_axis=None,
+                                       distance_func=None):
+    """
+    Calculates weights for potential edges based on distance or direction between vertices.
+
+    Parameters
+    ----------
+    pts_src : numpy.array
+        Shape: (n x 3). Locations of vertices of potential source nodes.
+    pts_tgt : numpy.array
+        Shape: (m x 3). Locations of vertices of potential target nodes. `pts_src` and `pts_tgt` can be
+        the same.
+    idx : numpy.array
+        Shape: (n, ). Specifies the locations of potential edges. The array has one entry per vertex in `pts_src`.
+        Each entry is a list of indices into `pts_tgt` that specifies the potential targets of that source vertex.
+        This corresponds to the output obtained from querying a scipy.spatial.KDTree.
+    directionality_axis : numpy.array
+        Shape: (3, ) This introduces a directionality bias, i.e., the calculated weight is larger if the direction 
+        of a potential edge aligns with a specified vector and less likely if the direction is in the opposite
+        direction of the vector. This is calculated as the dot product of the direction vector of the potential
+        connection with  `directionality_axis`. 
+    directionality_fac : float
+        Must be between -1 and 1. This specifies how much the dot product calculated using `directionality_axis`
+        (see above) is weighed to calculate a bias. Formally:
+        w = (delta o directionality_axis) * directionality_fac + 1,
+        where o denotes the vector dot product, delta is the vector from the source to the target vertex of a
+        potential connection. 
+        Directionality bias cannot be combined with distance bias (see below).
+    distance_func : function
+        A function that is to be evaluated on pairwise distances of candidate pairs. The function takes a
+        distance as input and returns a relative weight. 
+        Cannot be combined with a directionality bias (see above).
+    """
+    if distance_func is None:
+        distance_func = lambda _x: 1.0
+    A = pd.DataFrame(pts_src[:, :3], columns=pd.Index(["x", "y", "z"], name="coord"),
+                                    index=pd.Index(range(len(pts_src)), name="neuron"))
+    B = pd.concat([pd.DataFrame(pts_tgt[_idx, :3], index=pd.Index(_idx, name="i"),
+                    columns=pd.Index(["x", "y", "z"], name="coord"))
+                for _idx in idx],
+                axis=0, keys=range(len(idx)), names=["neuron"])
+    ab_diff = A - B
+    
+    pairw_D = pd.Series(np.linalg.norm(ab_diff, axis=1), index=ab_diff.index)
+
+    if directionality_axis is not None:
+        directionality_axis = np.array(directionality_axis).reshape((-1, 1))
+        align = pd.Series(np.dot(ab_diff, directionality_axis)[:, 0],
+                              index=ab_diff.index) / pairw_D
+        return (align * directionality_fac + 1) * pairw_D.apply(distance_func)
+
+    return pairw_D.apply(distance_func)
+
+def _evaluate_per_node_weights(w_out, w_in, idx):
+    """
+    Calculates weights for potential edges, based on weights specified per vertex for outgoing 
+    and/or incoming edges.
+
+    Parameters
+    ----------
+    w_out : numpy.array
+        Shape: (n, ). One entry per potential source vertex. Edges originating from a vertex will be
+        weighted with the weight in the correponding entry of `w_out`.
+    w_in : numpy.array
+        Shape: (m, ). One entry per potential target vertex. Edges connecting to a vertex will be
+        weighted with the weight in the correponding entry of `w_in`. This is multiplied with the weight
+        calculated from `w_out`.
+    idx : numpy.array
+        Shape: (n, ). Specifies the locations of potential edges. The array has one entry per source vertex,
+        i.e., the same length as `w_out`.
+        Each entry is a list of indices into `w_in` that specifies the potential targets of that source vertex.
+        This corresponds to the output obtained from querying a scipy.spatial.KDTree.
+    """
+    w_out = np.array(w_out)
+    w_in = np.array(w_in)
+
+    W = [pd.Series(_w_o * w_in[_idx], name="weight",
+                       index=pd.Index(_idx, name="i"))
+         for _w_o, _idx in zip(w_out, idx)]
+    W = pd.concat(W, axis=0, keys=range(len(idx)), names=["neuron"])
+    return W
