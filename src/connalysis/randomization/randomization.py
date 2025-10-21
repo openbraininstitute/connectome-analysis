@@ -847,6 +847,28 @@ def random_geometric_model(pts, pts_x=None, n_neighbors=None, dist_neighbors=Non
         If set to True, the output matrix is made symmetrical with the following strategy: If a connection
         from vertex i to j exists, a connection is also placed from j to i if it does not already exist.
         This is ignored without warning if `pts_x` is specified.
+    
+    Returns
+    ----------
+    sparse.csc_matrix
+        The adjacency matrix of an instance of a random geometric graph model.
+    
+    Raises
+    ----------
+    ValueError
+        If both n_neighbors and dist_neighbors is used
+    ValueError
+        If neither n_neighbors nor dist_neighbors is used
+    ValueError
+        If both n_pick and p_pick are used
+    ValueError
+        If neither n_pick not p_pick are used
+    ValueError
+        If p_pick is not between [0, 1]
+    ValueError
+        If directionality_fac is not between [-1, 1]
+    ValueError
+        If both directionality_axis and distance_func are used.
     """
     # Check inputs
     if (n_neighbors is not None) and (dist_neighbors is not None):
@@ -964,6 +986,17 @@ def stochastic_spread_model(M, n_steps=100,
         Optional output only returned if `return_history` is True. List specifying for each evaluated
         step the mean number of nodes that the process spread to. To be used to improve parameter fitting or
         for debugging.
+    
+    Raises
+    ----------
+    ValueError
+        If M contains any float weights > 1.0
+    ValueError
+        If M has bool data type and q is not used.
+    ValueError
+        If tgt_level is not one of ["mean", "individual"]
+    ValueError
+        If decay is not between [0, 1]
     """
     # Checking and setting up input variables
     if M.dtype != bool:
