@@ -771,8 +771,12 @@ def random_geometric_model(pts, pts_x=None, n_neighbors=None, dist_neighbors=Non
                             custom_w_out=None, custom_w_in=None,
                             no_diag=True, mirror=False):
     """
-    Generates a directed random geometric graph with some optional modifications. The modifications introduce
-    biases with respect to which nodes will be connected.
+    Generates a directed random geometric graph with optional modifications.
+
+    A basic random geometric graph is constructed from nodes embedded in R^m, with positions specified by pts. 
+    Directed edges between nodes are created probabilistically based on their pairwise distances in the ambient space.
+    The connection probability can be defined in multiple ways, depending on the input parameters provided.
+    Additional modifications can be introduced to generate biases with respect to which nodes will be connected.
 
     Parameters
     ----------
@@ -1045,7 +1049,9 @@ def stochastic_spread_model(M, n_steps=100,
             
         # Take a new step
         new_state = _evaluate_probs(candidates, adjust=fac, less_random=(_step < n_protected))
-        row.extend(new_state.row); col.extend(new_state.col); data.extend(_step * np.ones(new_state.nnz, dtype=int))
+        row.extend(new_state.row)
+        col.extend(new_state.col)
+        data.extend(_step * np.ones(new_state.nnz, dtype=int))
         new_state = new_state.tocsr()
 
         # Step added to history

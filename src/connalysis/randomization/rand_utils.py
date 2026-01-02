@@ -133,6 +133,11 @@ def _evaluate_probs_less_random(p_mat, adjust=None):
     """
     Evaluates a single spread step using the `less random` method.
 
+    That is, for each node (row of the input matrix) we select nodes (columns of the input matrix)
+    to spread to, where the number of selected nodes is deterministically given by the entries in the
+    corresponding row, but their identity is randomly chosen. The number of selected nodes is the sum
+    of entries > 0 in the row, weighed by `adjust` and rounded to the nearest integer.
+
     Parameters
     ----------
     p_mat : sparse.matrix
