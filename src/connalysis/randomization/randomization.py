@@ -895,6 +895,7 @@ def random_geometric_model(pts, pts_x=None, n_neighbors=None, dist_neighbors=Non
     mirror = bool(mirror)
     if pts_x is None:
         pts_x = pts
+    else:
         mirror = False
     if scale_axes is not None:
         pts = pts / np.array(scale_axes).reshape((1, -1))
