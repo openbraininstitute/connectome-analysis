@@ -20,10 +20,9 @@ classifiers = [
   "Operating System :: OS Independent",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Software Development :: Libraries :: Python Modules",
   "Typing :: Typed",
 ]
@@ -33,7 +32,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.9, <3.13"
+python = ">=3.11, <3.14"
 tables = ">3.8"
 numpy = "*"
 pandas = "*"
@@ -46,7 +45,7 @@ bigrandomgraphs = ">=0.0.4"
 pyflagsercount = ">=0.2.41"
 networkx="*"
 scikit-network = "*"
-ipykernel = "^6.29.5"
+ipykernel = "*"
 
 
 [tool.poetry.dev-dependencies]
@@ -71,7 +70,7 @@ profile = "black"
 src_paths = ["src", "tests"]
 
 [tool.black]
-target-version = ["py37", "py38", "py39"]
+target-version = ["py311", "py312", "py313"]
 include = '\.pyi?$'
 
 [tool.pytest.ini_options]
