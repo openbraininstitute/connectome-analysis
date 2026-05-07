@@ -129,7 +129,7 @@ def add_bidirectional_connections(sparse_matrix: sp.csc_matrix, bedges_to_add: i
     return sparse_matrix + dedge.T
 
 
-def _evaluate_probs_less_random(p_mat, adjust=None):
+def evaluate_probs_less_random(p_mat, adjust=None):
     """
     Evaluates a single spread step using the `less random` method.
 
@@ -172,7 +172,7 @@ def _evaluate_probs_less_random(p_mat, adjust=None):
     return m_out
 
 
-def _evaluate_probs(p_mat, adjust=None, less_random=False):
+def evaluate_probs(p_mat, adjust=None, less_random=False):
     """
     Evaluates a single spread step when building a stochastic spread graph (https://doi.org/10.1101/2025.08.21.671478)
 
@@ -191,7 +191,7 @@ def _evaluate_probs(p_mat, adjust=None, less_random=False):
         (row in p_mat) the process spreads to exactly the expected number of nodes instead of a random number.
     """
     if less_random:
-        return _evaluate_probs_less_random(p_mat, adjust=adjust)
+        return evaluate_probs_less_random(p_mat, adjust=adjust)
     p_mat = p_mat.tocoo()
     thresh = p_mat.data
     if adjust is not None:
@@ -199,7 +199,7 @@ def _evaluate_probs(p_mat, adjust=None, less_random=False):
     _v = np.random.rand(p_mat.nnz) < thresh
     return sp.coo_matrix((np.ones(_v.sum()), (p_mat.row[_v], p_mat.col[_v])), shape=p_mat.shape)
 
-def _connection_df_to_csc_matrix(w, mirror=True, shape=None):
+def connection_df_to_csc_matrix(w, mirror=True, shape=None):
     """
     Transforms a representation of a graph as a DataFrame of edges to a scipy.sparse.csc_matrix.
     Used for the generation of random geometric graphs.
@@ -232,8 +232,8 @@ def _connection_df_to_csc_matrix(w, mirror=True, shape=None):
                               shape=shape).tocsc()
     return M
 
-def _direction_or_distance_dependent_w(pts_src, pts_tgt, idx,
-                                       directionality_fac=0, directionality_axis=None,
+def direction_or_distance_dependent_w(pts_src, pts_tgt, idx,
+                                       directionality_fac=0.0, directionality_axis=None,
                                        distance_func=None):
     """
     Calculates weights for potential edges based on distance or direction between vertices.
@@ -286,7 +286,7 @@ def _direction_or_distance_dependent_w(pts_src, pts_tgt, idx,
 
     return pairw_D.apply(distance_func)
 
-def _evaluate_per_node_weights(w_out, w_in, idx):
+def evaluate_per_node_weights(w_out, w_in, idx):
     """
     Calculates weights for potential edges, based on weights specified per vertex for outgoing 
     and/or incoming edges.

@@ -16,9 +16,8 @@ import pandas as pd
 
 from scipy.spatial import KDTree
 
-from connalysis.randomization.rand_utils import _evaluate_probs, _evaluate_probs_less_random
 from connalysis.randomization.rand_utils import (
-    _connection_df_to_csc_matrix, _direction_or_distance_dependent_w, _evaluate_per_node_weights
+    evaluate_probs, connection_df_to_csc_matrix, direction_or_distance_dependent_w, evaluate_per_node_weights
 )
 
 LOG = logging.getLogger("connectome-analysis-randomization")
@@ -916,12 +915,12 @@ def random_geometric_model(pts, pts_x=None, n_neighbors=None, dist_neighbors=Non
     
     # Pick from candidates. Step 1: Calculate bias weights (if any)
     # Step 1a: Weights based on distance or direction.
-    w = _direction_or_distance_dependent_w(pts_x, pts, idx, distance_func=distance_func,
+    w = direction_or_distance_dependent_w(pts_x, pts, idx, distance_func=distance_func,
                                            directionality_axis=directionality_axis,
                                            directionality_fac=directionality_fac)
     # Step 1b: Weights based on per-node biases (in- or out-degree)
     if custom_w_in is not None and custom_w_out is not None:
-        cust_w = _evaluate_per_node_weights(custom_w_out, custom_w_in, idx)
+        cust_w = evaluate_per_node_weights(custom_w_out, custom_w_in, idx)
         cust_w = cust_w / cust_w.mean()
         w = w * cust_w
     
@@ -938,7 +937,7 @@ def random_geometric_model(pts, pts_x=None, n_neighbors=None, dist_neighbors=Non
     # Assemble output into sparse matrix.
     if len(w) > 0: # If any connection exists.
         w = w.droplevel(0)
-        return _connection_df_to_csc_matrix(w, mirror=mirror, shape=shape)
+        return connection_df_to_csc_matrix(w, mirror=mirror, shape=shape)
     # Fallback: Return empty matrix.
     return sp.csc_matrix((len(pts), len(pts)), dtype=bool)
 
@@ -948,7 +947,8 @@ def stochastic_spread_model(M, n_steps=100,
                             tgt_level="individual",
                             decay=1.0,
                             sum_exclusion=True,
-                            return_history=False):
+                            return_history=False,
+                            node_can_spread=None):
     """
     Builds a stochastic spread graph. See https://doi.org/10.1101/2025.08.21.671478
 
@@ -968,7 +968,9 @@ def stochastic_spread_model(M, n_steps=100,
         not use this feature.
     q : float 
         Sets the expected number of nodes to spread to in each step. This is done by scaling the weights in
-        M with weights dynamically determined in each step. Set to None to not use this feature.
+        M with weights dynamically determined in each step. If the data type of M is boolean, all entries
+        in M are interpreted as 1.0 and q must be provided to determine "proper" weights.
+        Set to None to not use this feature.
     tgt_level : str
         One of "mean" or "individual". Specifies how parameter q is interpreted. If "individual", then one 
         scaling factor per source node is calculated. If "mean", then one global factor is used. If q is
@@ -982,6 +984,11 @@ def stochastic_spread_model(M, n_steps=100,
         excluded in the next step.
     return_history : bool
         If True, then a second output is returned (see below).
+    node_can_spread : iterable
+        Individual elements must be bool. If provided, it specifies which nodes "grow" outgoing connections
+        via the spreading mechanism. That is, for nodes where the corresponding entry of `node_can_spread` is 
+        False, the out-degree will be set to 0. If provided, the length of the iterable must match the first
+        dimension of `M`. If not provided, all nodes will spread.
     
     Returns
     ----------
@@ -1002,6 +1009,8 @@ def stochastic_spread_model(M, n_steps=100,
         If tgt_level is not one of ["mean", "individual"]
     ValueError
         If decay is not between [0, 1]
+    ValueError
+        If node_can_spread is provided and its length does not match M
     """
     # Checking and setting up input variables
     if M.dtype != bool:
@@ -1022,7 +1031,15 @@ def stochastic_spread_model(M, n_steps=100,
         diagonals=np.ones(M.shape[0]),
         offsets=0, shape=M.shape, format="csr"
     )
-    state = initial
+    if node_can_spread is None:
+        state = initial
+    else:
+        if len(node_can_spread) != M.shape[0]:
+            raise ValueError("Length of node_can_spread must match first dimension of M!")
+        state = sp.diags(
+            diagonals=np.array(node_can_spread, dtype=int),
+            offsets=0, shape=M.shape, format="csr"
+        )
     M = M.transpose()
 
     # Set up output lists
@@ -1049,7 +1066,7 @@ def stochastic_spread_model(M, n_steps=100,
             fac = None
             
         # Take a new step
-        new_state = _evaluate_probs(candidates, adjust=fac, less_random=(_step < n_protected))
+        new_state = evaluate_probs(candidates, adjust=fac, less_random=(_step < n_protected))
         row.extend(new_state.row)
         col.extend(new_state.col)
         data.extend(_step * np.ones(new_state.nnz, dtype=int))
