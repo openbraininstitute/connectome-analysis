@@ -148,6 +148,11 @@ def evaluate_probs_less_random(p_mat, adjust=None):
     adjust : numpy.array
         Optional array of weight vectors. Scales the values of p_mat of the corresponding rows. In the manuscript
         (see above) this is 1 / r.
+    
+    Returns
+    -------
+    sp.csr_matrix
+        Sparse matrix representing the new target nodes (columns) that each source node (rows) spreads to 
     """
     p_mat = p_mat.tocsr()
     n_pick = np.array(p_mat.sum(axis=1))[:, 0]
@@ -189,6 +194,11 @@ def evaluate_probs(p_mat, adjust=None, less_random=False):
     less_random : bool
         If set to true, then the less stochastic version of the spread is used. That is, for each source node 
         (row in p_mat) the process spreads to exactly the expected number of nodes instead of a random number.
+    
+    Returns
+    -------
+    sp.coo_matrix
+        Sparse matrix representing the new target nodes (columns) that each source node (rows) spreads to 
     """
     if less_random:
         return evaluate_probs_less_random(p_mat, adjust=adjust)
@@ -197,11 +207,12 @@ def evaluate_probs(p_mat, adjust=None, less_random=False):
     if adjust is not None:
         thresh = thresh * adjust[p_mat.row]
     _v = np.random.rand(p_mat.nnz) < thresh
-    return sp.coo_matrix((np.ones(_v.sum()), (p_mat.row[_v], p_mat.col[_v])), shape=p_mat.shape)
+    m_out = sp.coo_matrix((np.ones(_v.sum()), (p_mat.row[_v], p_mat.col[_v])), shape=p_mat.shape)
+    return m_out
 
 def connection_df_to_csc_matrix(w, mirror=True, shape=None):
     """
-    Transforms a representation of a graph as a DataFrame of edges to a scipy.sparse.csc_matrix.
+    Transforms a representation of a graph as a DataFrame of edges to a scipy.sparse matrix.
     Used for the generation of random geometric graphs.
 
     Parameters
@@ -214,6 +225,11 @@ def connection_df_to_csc_matrix(w, mirror=True, shape=None):
         from vertex i to j exists, a connection is also placed from j to i if it does not already exist.
     shape : tuple
         The shape of the output matrix. If not provided, it will be guessed based on the indices in `w`.
+    
+    Returns
+    ----------
+    sp.coo_matrix
+        Sparse matrix with the edges listed in the DataFrame active
     """
     if shape is None:
         raise ValueError("Must provide shape")
@@ -265,6 +281,11 @@ def direction_or_distance_dependent_w(pts_src, pts_tgt, idx,
         A function that is to be evaluated on pairwise distances of candidate pairs. The function takes a
         distance as input and returns a relative weight. 
         Cannot be combined with a directionality bias (see above).
+    
+    Returns
+    ----------
+    pandas.Series
+        For all pairs of vertices in (pts_src, pts_tgt) their distance according to the specs above.
     """
     if distance_func is None:
         distance_func = lambda _x: 1.0
@@ -305,6 +326,12 @@ def evaluate_per_node_weights(w_out, w_in, idx):
         i.e., the same length as `w_out`.
         Each entry is a list of indices into `w_in` that specifies the potential targets of that source vertex.
         This corresponds to the output obtained from querying a scipy.spatial.KDTree.
+    
+    Returns
+    ----------
+    pandas.Series
+        Series with one entry per potential edge. Value is the product of the w_out and w_in entries
+        corresponding to the potential edges as specified in idx.
     """
     w_out = np.array(w_out)
     w_in = np.array(w_in)
