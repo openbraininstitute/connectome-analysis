@@ -772,10 +772,22 @@ def random_geometric_model(pts, pts_x=None, n_neighbors=None, dist_neighbors=Non
     """
     Generates a directed random geometric graph with optional modifications.
 
-    A basic random geometric graph is constructed from nodes embedded in R^m, with positions specified by pts. 
-    Directed edges between nodes are created probabilistically based on their pairwise distances in the ambient space.
-    The connection probability can be defined in multiple ways, depending on the input parameters provided.
-    Additional modifications can be introduced to generate biases with respect to which nodes will be connected.
+    Nodes are given by embedded points in R^m with positions given by `pts`. Directed edges are
+    created probabilistically through two successive filtering stages:
+    
+    1. **Candidate selection**: For each node, select candidate neighbors either by:
+    
+       a. Choosing the `n_neighbors` nearest neighbors in R^m, or
+       b. Choosing all nodes within distance `dist_neighbors`.
+    
+    2. **Sub-selection**: From the candidates, draw the final neighbors either by:
+    
+       a. Sampling `n_pick` nodes uniformly at random, or
+       b. Retaining each candidate independently with probability `p_pick`.
+    
+    The sub-selection step is optional, and can moreover be biased to give
+    asymmetric connectivity via `directionality_fac` and `directionality_axis`,
+    or via a custom `distance_func`.
 
     Parameters
     ----------
