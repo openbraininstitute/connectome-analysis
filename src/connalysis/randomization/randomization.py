@@ -12,6 +12,14 @@ import logging
 import numpy as np
 import scipy.sparse as sp
 import bigrandomgraphs as gm
+import pandas as pd
+
+from scipy.spatial import KDTree
+
+from connalysis.randomization.rand_utils import (
+    evaluate_probs, connection_df_to_csc_matrix, direction_or_distance_dependent_w, evaluate_per_node_weights
+)
+
 LOG = logging.getLogger("connectome-analysis-randomization")
 LOG.setLevel("INFO")
 logging.basicConfig(format="%(asctime)s %(levelname)-8s %(message)s",
@@ -753,3 +761,346 @@ def add_connections(adj,nc, seed=0,sparse_mode=True, max_iter=30):
         selection=zero_ind[0][generator.choice(zero_ind[0].shape[0], replace=False, size=nc)]
         adj[(ul_ind[0][selection],ul_ind[1][selection])]=1
     return adj
+
+
+def random_geometric_model(pts, pts_x=None, n_neighbors=None, dist_neighbors=None, n_pick=None,
+                            p_pick=None, scale_axes=None,
+                            directionality_fac=0.0, directionality_axis=None,
+                            distance_func=None,
+                            custom_w_out=None, custom_w_in=None,
+                            no_diag=True, mirror=False):
+    """
+    Generates a directed random geometric graph with optional modifications.
+
+    Nodes are given by embedded points in R^m with positions given by `pts`. Directed edges are
+    created probabilistically through two successive filtering stages:
+    
+    1. **Candidate selection**: For each node, select candidate neighbors either by:
+    
+       a. Choosing the `n_neighbors` nearest neighbors in R^m, or
+       b. Choosing all nodes within distance `dist_neighbors`.
+    
+    2. **Sub-selection**: From the candidates, draw the final neighbors either by:
+    
+       a. Sampling `n_pick` nodes uniformly at random, or
+       b. Retaining each candidate independently with probability `p_pick`.
+    
+    The sub-selection step is optional, and can moreover be biased to give
+    asymmetric connectivity via `directionality_fac` and `directionality_axis`,
+    or via a custom `distance_func`.
+
+    Parameters
+    ----------
+    pts : numpy.array
+        Shape: n x m, where n is the number of nodes and m the number of dimensions. The locations of the
+        vertices that the random geometric graph is to be constructed on.
+    pts_x : numpy.array
+        Optional input for a second set of vertex locations. If provided, edges from `pts` to `pts_x` will
+        be placed according to the random geometric rules. That is, a random geometric graph on the 
+        concatenation of `pts` and `pts_x` is constructed, but only the entries in the top right part of the
+        adjacency matrix are kept and the rest set to 0.
+    n_neighbors : int
+        One way of specifying the potential set of partners for each node. If specified, the `n_neighbors` 
+        nearest neighbors of a node are potential partners for outgoing connections to be placed.
+    dist_neighbors : float
+        The other way to specify the potential set of partners. If specified, all vertices within that distance
+        of a node are potential partners for outgoing connections to be placed. 
+        Either `n_neighbors` or `dist_neighbors` must be used. If both or neither are used, an Exception is raised.
+    n_pick : int
+        One way of specifying the actual number of vertices that are connected from each node. If specified, 
+        `n_pick` vertices from the candidates (see above) are randomly picked and outgoing connections placed
+        to all of them. If the number of candidates for a vertex is smaller than `n_pick`, then simply all 
+        candidates will be picked and no warning or exception raised.
+    p_pick : float
+        The other way to specify the actual number of vertices that are connected from each node. If specified,
+        each candidate (see above) will be picked with probability `p_pick`; if picked a connection will be
+        placed between them.
+        Either `n_pick` or `p_pick` must be used. If both or neither are used, and Exception is raised.
+    scale_axes : numpy.array
+        Shape: (m, ), where m is the number of dimensions. One way of biasing which pairs are connected. 
+        If used, distances along each dimension are scaled by the corresponding factor in `scale_axes` before
+        candidates for connection are picked, i.e., before `n_neighbors` or `dist_neighbors` is evaluated.
+    directionality_axis : numpy.array
+        Shape: (m, ), where m is the number of dimensions. Another way of biasing which pairs are connected.
+        This introduces a directionality bias, i.e., connections are more likely if their direction aligns with
+        a specified vector and less likely if their direction is in the opposite direction of the vector. This
+        is calculated as the dot product of the direction vector of the potential connection with 
+        `directionality_axis`. 
+        This is evaluated _after_ candidates have been picked and only affects the selection of actual connections
+        from the candidates (see `n_neighbors` / `dist_neighbors` and `n_pick` / `p_pick`) above.
+    directionality_fac : float
+        Must be between -1 and 1. This specifies how much the dot product calculated using `directionality_axis`
+        (see above) is weighed to calculate a bias. Formally:
+        w = (delta o directionality_axis) * directionality_fac + 1,
+        where o denotes the vector dot product, delta is the vector from the source to the target vertex of a
+        potential connection. 
+        Note that these are relative weights that are scaled to fulfill the constraints
+        on the number of connections to pick given by `n_pick` or `p_pick`.
+        Note that this does NOT affect the selection of candidates, parameterized by `n_neighbors` or 
+        `dist_neighbors`, but only the selection from the candidates.
+        Directionality bias cannot be combined with distance bias (see below).
+    distance_func : function
+        A function that is to be evaluated on pairwise distances of candidate pairs. Another way of biasing 
+        which pairs are connected. The function takes a distance as input and returns a relative weight. 
+        Note that these are relative weights that are scaled to fulfill the constraints on the number of
+        connections to pick given by `n_pick` or `p_pick`. 
+        Note that this does NOT affect the selection of candidates, parameterized by `n_neighbors` or 
+        `dist_neighbors`, but only the selection from the candidates.
+        Cannot be combined with a directionality bias (see above).
+    custom_w_out : numpy.array
+        Shape: (n, ). For details, see below.
+    custom_w_in : numpy.array
+        Shape: (n, ). custom_w_out and custom_w_in, if used, provide per-node biases for the selection of
+        connection from candidates. Simply, for all potential outgoing connections from vertex i, entry
+        custom_w_out[i] is used as a relative weight that is multiplied with any other potential weight.
+        Similarly for custom_w_in[i] for potential incoming connections.
+        Note that this does NOT affect the selection of candidates, parameterized by `n_neighbors` or 
+        `dist_neighbors`, but only the selection from the candidates.
+    no_diag : bool
+        If set to False, connections from a vertex to itself are allowed to be placed.
+    symmetrize : bool
+        If set to True, the output matrix is made symmetrical with the following strategy: If a connection
+        from vertex i to j exists, a connection is also placed from j to i if it does not already exist.
+        This is ignored without warning if `pts_x` is specified.
+    
+    Returns
+    ----------
+    sparse.csc_matrix
+        The adjacency matrix of an instance of a random geometric graph model.
+    
+    Raises
+    ----------
+    ValueError
+        If both n_neighbors and dist_neighbors is used
+    ValueError
+        If neither n_neighbors nor dist_neighbors is used
+    ValueError
+        If both n_pick and p_pick are used
+    ValueError
+        If neither n_pick not p_pick are used
+    ValueError
+        If p_pick is not between [0, 1]
+    ValueError
+        If directionality_fac is not between [-1, 1]
+    ValueError
+        If both directionality_axis and distance_func are used.
+    """
+    # Check inputs
+    if (n_neighbors is not None) and (dist_neighbors is not None):
+        raise ValueError("Cannot specify both n_neighbors and dist_neighbors!")
+    if (n_neighbors is None) and (dist_neighbors is None):
+        raise ValueError("Must specify either n_neighbors or dist_neighbors!")
+    if (n_pick is not None) and (p_pick is not None):
+        raise ValueError("Cannot specify both n_pick and p_pick!")
+    if (n_pick is None) and (p_pick is None):
+        raise ValueError("Must specify either n_pick or p_pick!")
+    if p_pick is not None:
+        if (p_pick < 0) or (p_pick > 1.0):
+            raise ValueError(f"p_pick must be between 0 and 1! Found: {p_pick}")
+    if (directionality_fac < -1) or (directionality_fac > 1):
+        raise ValueError("directionality_fac must be between -1 and 1!")
+    if (directionality_axis is not None) and (distance_func is not None):
+        raise ValueError("Cannot specify both directionality bias and custom distance function!")
+
+    # Evaluation of optional inputs
+    mirror = bool(mirror)
+    if pts_x is None:
+        pts_x = pts
+    else:
+        mirror = False
+    if scale_axes is not None:
+        pts = pts / np.array(scale_axes).reshape((1, -1))
+        pts_x = pts_x / np.array(scale_axes).reshape((1, -1))
+    shape = (len(pts_x), len(pts))
+    
+    # Generate candidates for connections based on number or max. distance
+    kd = KDTree(pts)
+    if n_neighbors is not None: # Case 1: number of neighbor candidates given
+        if no_diag:
+            _, idx = kd.query(pts_x, np.arange(2, 2 + n_neighbors))  # len(idx_x) x n_neighbors
+        else:
+            _, idx = kd.query(pts_x, np.arange(1, 1 + n_neighbors))  # len(idx_x) x n_neighbors
+    elif dist_neighbors is not None: # Case 2: max. distance for neighbor candidates given
+        idx = list(kd.query_ball_point(pts_x, dist_neighbors))
+        if no_diag:
+            idx = [np.setdiff1d(_idx, _i) for _i, _idx in enumerate(idx)]  # This is slow. Filter after the fact?
+    
+    # Pick from candidates. Step 1: Calculate bias weights (if any)
+    # Step 1a: Weights based on distance or direction.
+    w = direction_or_distance_dependent_w(pts_x, pts, idx, distance_func=distance_func,
+                                           directionality_axis=directionality_axis,
+                                           directionality_fac=directionality_fac)
+    # Step 1b: Weights based on per-node biases (in- or out-degree)
+    if custom_w_in is not None and custom_w_out is not None:
+        cust_w = evaluate_per_node_weights(custom_w_out, custom_w_in, idx)
+        cust_w = cust_w / cust_w.mean()
+        w = w * cust_w
+    
+    # Step 2: Actually pick connections based on constraints (n_pick, p_pick) and weights.
+    if p_pick is not None:
+        wmean = w.mean()
+        picker_func = lambda _x: _x.loc[np.random.rand(len(_x)) < (p_pick * _x / wmean)]
+    elif n_pick is not None:
+        picker_func = lambda _x: _x.iloc[np.random.choice(len(_x), np.minimum(n_pick, len(_x)),
+                                                             replace=False,
+                                                             p=_x / _x.sum())]
+    w = w.groupby("neuron").apply(picker_func)
+
+    # Assemble output into sparse matrix.
+    if len(w) > 0: # If any connection exists.
+        w = w.droplevel(0)
+        return connection_df_to_csc_matrix(w, mirror=mirror, shape=shape)
+    # Fallback: Return empty matrix.
+    return sp.csc_matrix((len(pts), len(pts)), dtype=bool)
+
+
+def stochastic_spread_model(M, n_steps=100,
+                            n_protected=0, q=10.0, 
+                            tgt_level="individual",
+                            decay=1.0,
+                            sum_exclusion=True,
+                            return_history=False,
+                            node_can_spread=None):
+    """
+    Builds a stochastic spread graph. See https://doi.org/10.1101/2025.08.21.671478
+
+    Parameters
+    ----------
+    M : sparse.matrix
+        Adjacency matrix of the underlying graph to spread on. If data type is float then the weight
+        specifies the probability that the corresponding edge is crossed in a step. This weight / probability
+        is further scaled if parameter q is specified. If data type is bool, then q _must_ be specified.
+    n_steps : int
+        Maximum number of steps to evaluate. Should be picked `large enough` that the spreading process
+        terminates naturally from lack of new nodes instead of reaching this maximum.
+    n_protected : int
+        Number of initial steps to take with reduced stochasticity. For this number of steps the process 
+        for a given source node will spread to exactly the expected number of nodes instead of a randomly
+        determined number. This avoids a large number of source nodes with zero out-degree. Set to 0 to
+        not use this feature.
+    q : float 
+        Sets the expected number of nodes to spread to in each step. This is done by scaling the weights in
+        M with weights dynamically determined in each step. If the data type of M is boolean, all entries
+        in M are interpreted as 1.0 and q must be provided to determine "proper" weights.
+        Set to None to not use this feature.
+    tgt_level : str
+        One of "mean" or "individual". Specifies how parameter q is interpreted. If "individual", then one 
+        scaling factor per source node is calculated. If "mean", then one global factor is used. If q is
+        set to None, then this is ignored. Using "mean" leads to more diverse degree distributions.
+    decay : float
+        Must be between 0 and 1. Paramter q is multiplied by this value after each step, reducing its value.
+        This leads to shorter degree distributions.
+    sum_exclusion : bool
+        Determines how the node exclusion rule is updated. If True, then once a candidate node has been
+        rejected once from spread it can not be spread to in future steps. If False, then it is only 
+        excluded in the next step.
+    return_history : bool
+        If True, then a second output is returned (see below).
+    node_can_spread : iterable
+        Individual elements must be bool. If provided, it specifies which nodes "grow" outgoing connections
+        via the spreading mechanism. That is, for nodes where the corresponding entry of `node_can_spread` is 
+        False, the out-degree will be set to 0. If provided, the length of the iterable must match the first
+        dimension of `M`. If not provided, all nodes will spread.
+    
+    Returns
+    ----------
+    full_instance : sparse.matrix
+        Adjacency matrix of the output graph
+    history : list
+        Optional output only returned if `return_history` is True. List specifying for each evaluated
+        step the mean number of nodes that the process spread to. To be used to improve parameter fitting or
+        for debugging.
+    
+    Raises
+    ----------
+    ValueError
+        If M contains any float weights > 1.0
+    ValueError
+        If M has bool data type and q is not used.
+    ValueError
+        If tgt_level is not one of ["mean", "individual"]
+    ValueError
+        If decay is not between [0, 1]
+    ValueError
+        If node_can_spread is provided and its length does not match M
+    """
+    # Checking and setting up input variables
+    if M.dtype != bool:
+        if np.any(M.data > 1.0):
+            raise ValueError("Weights in input matrix must be <= 1.0!")
+    else:
+        if q is None:
+            raise ValueError("If q is set to None, then M must specify probabilities (float between 0 and 1)!")
+    if tgt_level not in ["mean", "individual"]:
+        raise ValueError(f"Unknown value for tgt_level: {tgt_level}. Expected one of ['mean', 'individual']!")
+    if (decay < 0) or (decay > 1.0):
+        raise ValueError("Parameter decay must be between 0 and 1!")
+    sum_exclusion = bool(sum_exclusion)
+
+    # Setting up the initial
+    exclusion = sp.coo_matrix(([], ([], [])), shape=M.shape)
+    initial = sp.diags(
+        diagonals=np.ones(M.shape[0]),
+        offsets=0, shape=M.shape, format="csr"
+    )
+    if node_can_spread is None:
+        state = initial
+    else:
+        if len(node_can_spread) != M.shape[0]:
+            raise ValueError("Length of node_can_spread must match first dimension of M!")
+        state = sp.diags(
+            diagonals=np.array(node_can_spread, dtype=int),
+            offsets=0, shape=M.shape, format="csr"
+        )
+    M = M.transpose()
+
+    # Set up output lists
+    row = []
+    col = []
+    data = []
+    history = []
+    
+    # Main loop
+    for _step in range(n_steps):
+        # Where the process can spread to. Subtracting exclusion ensures values < 0
+        candidates = state * M - 1E6 * (exclusion + initial)
+        candidates.data = np.minimum(np.maximum(candidates.data, 0), 1.0)
+
+        # Scaling of spread probabilities based on configuration
+        if q is not None:
+            if tgt_level == "mean":
+                csum = np.array(candidates.sum(axis=1))[:, 0]
+                fac = q * np.ones(M.shape[0]) / csum[csum > 0].mean()
+            else:
+                fac = q / np.array(candidates.sum(axis=1) + 1E-3)[:, 0]
+            q = q * decay
+        else:
+            fac = None
+            
+        # Take a new step
+        new_state = evaluate_probs(candidates, adjust=fac, less_random=(_step < n_protected))
+        row.extend(new_state.row)
+        col.extend(new_state.col)
+        data.extend(_step * np.ones(new_state.nnz, dtype=int))
+        new_state = new_state.tocsr()
+
+        # Step added to history
+        h_i = new_state.sum(axis=1).mean()  # Mean number added per original neuron
+        history.append(h_i)
+
+        # Update exclusion rule
+        if sum_exclusion:
+            exclusion = exclusion + state
+        else:
+            exclusion = state
+        state = new_state
+
+    # Create output matrix
+    full_instance = sp.coo_matrix((
+        np.ones(len(row), dtype=bool),
+        (row, col)
+    ), shape=M.shape).tocsr()
+
+    if return_history:
+        return full_instance, history
+    return full_instance

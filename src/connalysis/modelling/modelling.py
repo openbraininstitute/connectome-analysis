@@ -1412,3 +1412,65 @@ def _plot_3rd_order(adj, node_properties, model_name, p_conn_dist_bip, count_con
         out_fn = os.path.abspath(os.path.join(plot_dir, model_name + '__data_counts.png'))
         plt.savefig(out_fn)
         logging.info(f'Figure saved to {out_fn}')
+
+
+def per_group_in_out_bias_model(mat, vertex_properties, property_to_group_by, axis):
+    """
+    Generates "per node bias" weights based on the strengths of pathways in a reference dataset.
+
+    Parameters
+    ---------
+    mat: scipy.sparse.spmatrix
+        The adjacency matrix of the reference connetome for fitting of the per-node-bias values
+    vertex_properties: pd.DataFrame
+        The vertex properties of the reference connectome for fitting of the per-node-bias values.
+        Must have one row per node, i.e., per row and column of `mat`. Columns of the DataFrame 
+        represent different properties.
+    property_to_group_by : str
+        Name of a column in `vertex_properties`. Vertices in `reference` will be grouped based 
+        on the values of that property and the same bias will be used for all vertices in a group.
+    axis : int
+        One of 0 or 1. If 0, a bias for vertices as target nodes, if 1: as source nodes
+    
+    Returns
+    ---------
+    numpy.array
+        Shape (n, ), where n is the number of vertices in reference. One weight per vertex. Weights will be higher
+        or lower if vertices of the corresponding group in reference have higher or lower degrees, or if the weights
+        of their edges are stronger / weaker. 
+        That is, weights are based on the mean weight per pair, where absence of a connection is interpreted as zero
+        weight.
+
+    Raises
+    ---------
+    ValueError
+        If axis is not one of [0, 1].
+    IndexError
+        If property_to_group_by is not the name of a vertex property in reference,
+    """
+
+    mat = mat.tocsr()
+    categorical = pd.Categorical(vertex_properties[property_to_group_by])
+
+    classes = categorical.categories.to_numpy()
+    MM = []
+    for cat_row in range(len(classes)):
+        idx_row = categorical.codes == cat_row
+        row = []
+        for cat_col in range(len(classes)):
+            idx_col = categorical.codes == cat_col
+            row.append(mat[np.ix_(idx_row, idx_col)].nnz)
+        MM.append(row)
+    MM = np.array(MM)
+
+    c = vertex_properties[property_to_group_by].value_counts()[classes]
+    nrmlz = c.to_numpy().reshape((-1, 1)) * c.to_numpy().reshape((1, -1)) + 1E-9
+
+    MM = MM / nrmlz  # Connection prob
+    MM = MM.mean() * (MM ** 1.5) / (MM ** 1.5).mean()
+
+    w_per_class = np.nanmean(MM, axis=axis) / np.sqrt(np.nanmean(MM))
+    w_per_class = pd.Series(w_per_class, name="weight", index=classes)
+    w_per_node = w_per_class[vertex_properties[property_to_group_by]].to_numpy()
+
+    return w_per_node
