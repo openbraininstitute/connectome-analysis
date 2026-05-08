@@ -12,7 +12,7 @@ jobs:
   draft-release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/python-poetry-env
       - name: Update version
         id: updated_version
@@ -20,9 +20,9 @@ jobs:
         run: |
           poetry version ${{ github.event.inputs.version }}
           version=$(poetry version --short)
-          echo ::set-output name="version::$version"
+          echo "version=$version" >> $GITHUB_OUTPUT
       - name: Commit changes
-        uses: EndBug/add-and-commit@v7
+        uses: EndBug/add-and-commit@v9
         with:
           add: 'pyproject.toml'
           message: 'Release ${{ steps.updated_version.outputs.version }}'
@@ -31,11 +31,10 @@ jobs:
           git tag ${{ steps.updated_version.outputs.version }}
           git push origin ${{ steps.updated_version.outputs.version }}
       - name: Create a draft release
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.updated_version.outputs.version }}
-          release_name: Release ${{ steps.updated_version.outputs.version }}
-          body: ${{ steps.changelog.outputs.body }}
+          name: Release ${{ steps.updated_version.outputs.version }}
           draft: true
