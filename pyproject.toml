@@ -32,20 +32,18 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.9, <3.13"
-tables = ">3.8"
+python = ">=3.10, <3.13"
 numpy = "*"
 pandas = "*"
 scipy = "*"
 matplotlib = "*"
-progressbar ="2.5"
 tqdm="*"
 pyflagser ="*"
-bigrandomgraphs = ">=0.1.0"
+bigrandomgraphs = ">=0.1.1"
 pyflagsercount = ">=0.5.0"
 networkx="*"
 scikit-network = "*"
-ipykernel = "^6.29.5"
+tables = ">=3.10.1"
 
 
 [tool.poetry.dev-dependencies]
