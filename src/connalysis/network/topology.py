@@ -17,7 +17,7 @@ import pandas as pd
 import logging
 import scipy.sparse as sp
 import pyflagsercount
-import pyflagser
+import flagserpy
 import math
 
 from .local import neighbourhood
