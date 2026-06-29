@@ -16,7 +16,7 @@ import scipy.sparse as sps
 import scipy.spatial as spt
 import matplotlib.pyplot as plt
 import itertools
-import progressbar
+import tqdm
 import pickle
 import sys
 import logging
@@ -995,8 +995,7 @@ def _extract_dependent_p_conn(adj, dep_matrices, dep_bins):
     count_conn = np.full(num_bins, -1) # Count of connected pairs of neurons for each combination of dependencies
 
     logging.info(f'Extracting {num_dep}-dimensional ({"x".join([str(n) for n in num_bins])}) connection probabilities...')
-    pbar = progressbar.ProgressBar(maxval=np.prod(num_bins) - 1)
-    for idx in pbar(itertools.product(*bin_indices)):
+    for idx in tqdm.tqdm(itertools.product(*bin_indices), total=np.prod(num_bins)):
         dep_sel = np.full(adj.shape, True)
         for dim in range(num_dep):
             lower = dep_bins[dim][idx[dim]]

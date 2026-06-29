@@ -20,10 +20,9 @@ classifiers = [
   "Operating System :: OS Independent",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "Topic :: Software Development :: Libraries :: Python Modules",
   "Typing :: Typed",
 ]
@@ -33,34 +32,30 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.9, <3.13"
-tables = ">3.8"
+python = ">=3.10, <3.13"
 numpy = "*"
 pandas = "*"
 scipy = "*"
 matplotlib = "*"
-progressbar ="2.5"
 tqdm="*"
 pyflagser ="*"
-bigrandomgraphs = ">=0.1.0"
+bigrandomgraphs = ">=0.1.1"
 pyflagsercount = ">=0.5.0"
 networkx="*"
 scikit-network = "*"
-ipykernel = "^6.29.5"
+tables = ">=3.10.1"
 
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 black = "*"
 mkdocstrings = {version = ">=0.18", extras = ["python"]}
 mkdocs-material = "*"
 pytest = "*"
 pytest-github-actions-annotate-failures = "*"
 pytest-cov = "*"
-
-[tool.poetry.group.dev.dependencies]
 jupyter = "^1.0.0"
 seaborn = "*"
-#networkx = "*"
+urllib3 = ">=2.7.0"
 
 [build-system]
 requires = ["poetry-core>=1.2.0", "setuptools"]
@@ -71,7 +66,7 @@ profile = "black"
 src_paths = ["src", "tests"]
 
 [tool.black]
-target-version = ["py37", "py38", "py39"]
+target-version = ["py310", "py311", "py312"]
 include = '\.pyi?$'
 
 [tool.pytest.ini_options]
