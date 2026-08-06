@@ -1360,165 +1360,163 @@ def bedge_counts(adjacency, simplices=None,
 
 
 #TRIAD ANALYSIS
-label_edges = np.arange(3 * 3).reshape(3, 3)  # Indexing edges on a 3x3 matrix going from left to right and up to down
-def _get_triad_id(edges):
-    """Given a the edges on a graph on nodes {0,1,2}
-    return a list of edges indexed from 0 to 8 as in label_edges.
-
-    Parameters
-    ----------
-    edges : tuple of pairs
-        Each pair is of the form $(i,j)$ where $i, j \\in \\{0,1,2}$.
-
-    Returns
-    -------
-    list of integers between 0 and 8 indexing the edges as in label_edges
-    """
-    row, col = tuple(zip(*edges))
-    return tuple(np.sort(label_edges[row, col]))
-
-# We list all connected triads by hand as sort them as in Gal et al., 2017
-connected_triads = {
+# Various representations of canonical triads. In the same order.
+TRIAD_STRINGS = [
     # On two edges
-    0: ((0, 2), (1, 0)),
-    1: ((0, 2), (1, 2)),
-    2: ((0, 1), (0, 2)),
+    "A->B->C","A->B<-C","A<-B->C",
     # On three edges
-    3: ((0, 1), (1, 2), (0, 2)),
-    4: ((0, 1), (0, 2), (1, 0)),
-    5: ((0, 1), (1, 0), (2, 0)),
-    6: ((0, 1), (1, 2), (2, 0)),
+    "A->B->C<-A","A<->B->C","A<->B<-C","A->B->C->A",
     # On four edges
-    7: ((0, 1), (0, 2), (1, 0), (2, 0)),
-    8: ((0, 1), (0, 2), (1, 0), (2, 1)),
-    9: ((0, 1), (0, 2), (1, 0), (1, 2)),
-    10: ((0, 1), (0, 2), (1, 2), (2, 1)),
+    "A<->B->C<-A","A<->B<-C<-A","A<->B<->C","A->B<->C<-A",
+    # On five edges
+    "A<->B->C<->A",
+    # On six edges
+    "A<->B<->C<->A"
+]
+TRIAD_EDGES_LIST = [
+    # On two edges
+    ((0, 2), (1, 0)),
+    ((0, 2), (1, 2)),
+    ((0, 1), (0, 2)),
+    # On three edges
+    ((0, 1), (1, 2), (0, 2)),
+    ((0, 1), (0, 2), (1, 0)),
+    ((0, 1), (1, 0), (2, 0)),
+    ((0, 1), (1, 2), (2, 0)),
+    # On four edges
+    ((0, 1), (0, 2), (1, 0), (2, 0)),
+    ((0, 1), (0, 2), (1, 0), (2, 1)),
+    ((0, 1), (0, 2), (1, 0), (1, 2)),
+    ((0, 1), (0, 2), (1, 2), (2, 1)),
     # On 5 edge
-    11: ((0, 1), (0, 2), (1, 0), (1, 2), (2, 0)),
+    ((0, 1), (0, 2), (1, 0), (1, 2), (2, 0)),
     # On 6 edges
-    12: ((0, 1), (0, 2), (1, 0), (1, 2), (2, 0), (2, 1))
-}
-
-# Exhaustive dictionary of triads (digraphs on 3 nodes) represented by their list of edges as indexed in
-# label_edges.  The 3-cycle needs to be entered twice because all edges have the same in-out degree but there
-# are two graphs in the isomorphism class.
-triad_dict = {_get_triad_id(connected_triads[i]): i for i in range(13)}
-triad_dict[(2, 3, 7)] = 6
-# Size of isomorphism class of each triad type i.e., number of permutation of the vertices giving the same graph
+    ((0, 1), (0, 2), (1, 0), (1, 2), (2, 0), (2, 1))
+]
 triad_combinations = np.array([6, 3, 3,  # 2 edges
                                6, 6, 6, 2,  # 3 edges
                                3, 6, 3, 3,  # 4 edges
                                6,  # 5 edges
                                1])  # 3-clique
-def count_triads_fully_connected(adj, max_num_sampled=5000000, return_normalized=False):
-    """Counts the numbers of each triadic motif in the matrix adj.
+triad_n_edges = np.array([2, 2, 2,
+                          3, 3, 3, 3,
+                          4, 4, 4, 4,
+                          5,
+                          6])
 
-    Parameters
-    ----------
-    adj : 2d-array
-        Adjacency matrix of a directed network.
-    max_num_sampled : int
-        The maximal number of connected triads classified. If the number of
-        connected triads is higher than that, only the specified number is sampled at random and
-        classified. The final counts are extrapolated as (actual_num_triads/ max_num_sampled) * counts.
-    return_normalized : bool
-        If True return the triad counts divided by the size of each isomorphism class.  That is, the total counts
-        divided by the following array:
+def expected_triads_fully_connected(adj, return_normalized=False):
+    """Returns the expected numbers of each triadic motif in an 
+    Erdos-Renyi model fitted against `adj`, i.e., with the same 
+    sparsity as `adj`.
 
-        $[6, 3, 3, 6, 6, 6, 2, 3, 6, 3, 3, 6, 1].$
-
-    Returns
-    -------
-    1d-array
-        The counts of the various triadic motifs in adj as ordered in Figure 5 [1]_.
-
-    Notes
-    ------
-    Only connectected motifs are counted, i.e. motifs with less than 2 connections or only a single bidirectional
-    connection are not counted. The connected motifs are ordered as in Figure 5 [1]_.
-
-    References
-    -------
-
-    ..[1] Gal, Eyal, et al.
-    ["Rich cell-type-specific network topology in neocortical microcircuitry."](https://www.nature.com/articles/nn.4576)
-    Nature neuroscience 20.7 (2017): 1004-1013.
-
+        Paramters
+        ---------
+        adj : 2d-array
+            Adjacency matrix of a directed network. Used as reference for an Erdos-Renyi model
+        return_normalized : bool
+            If True return the triad counts divided by the size of each isomorphism class.  That is, the total counts
+            divided by the following array:
+    
+            $[6, 3, 3, 6, 6, 6, 2, 3, 6, 3, 3, 6, 1].$
+            
+        Returns
+        -------
+        1d-array
+            The expected counts of the various triadic motifs in an Erdos-Renyi model with the same sparsity as adj.
+            As these are expected values, data type is float, not int!
+        
+        Notes
+        -------
+        For details, see `count_triads_fully_connected`.
     """
-
-    # Functions to indetify triads
-    def canonical_sort(M):
-        """Sorts row/columns of the matrix adj using the lexicographical order of the
-        tuple (out_degree, in_degree).
-
-        Parameters
-        ----------
-        M : 2d-array
-            Adjacency matrix of a directed network.
-
-        Returns
-        -------
-        2d-array
-            the matrix adj with rows/columns sorted
-        """
-        in_degree = np.sum(M, axis=0)
-        out_degree = np.sum(M, axis=1)
-        idx = np.argsort(-in_degree - 10 * out_degree)
-        return M[:, idx][idx]
-
-    def identify_motif(M):
-        """
-        Identifies the connected directed digraph on three nodes M as on in the full classification
-        list given in the dictionary triad_dict.
-
-        Parameters
-        ----------
-        M : array
-            A (3,3) array describing a directed connected digraph on three nodes.
-
-        Returns
-        -------
-        The index of the motif as indexed in the dictiroanry triad_dict which follows the
-        ordering of Gal et al., 2017
-        """
-        triad_code = tuple(np.nonzero(canonical_sort(M).flatten())[0])
-        return triad_dict[triad_code]
-
-    # Finding and counting triads
-    import time
-    adj = adj.toarray()  # Casting to array makes finding triads an order of magnitude faster
-    t0 = time.time()
-    undirected_adj = underlying_undirected_matrix(adj).toarray()
-    # Matrix with i,j entries number of undirected paths between i and j in adj
-    path_counts = np.triu(undirected_adj @ undirected_adj, 1)
-    connected_pairs = np.nonzero(path_counts)
-    triads = set()
-    print("Testing {0} potential triadic pairs".format(len(connected_pairs[0])))
-    for x, y in zip(*connected_pairs):
-        # zs = np.nonzero((undirected_adj.getrow(x).multiply(undirected_adj.getrow(y))).toarray()[0])[0]
-        zs = np.nonzero(undirected_adj[x] & undirected_adj[y])[0]
-        for z in zs:
-            triads.add(tuple(sorted([x, y, z])))
-    triads = list(triads)
-    print("Time spent finding triads: {0}".format(time.time() - t0))
-    print("Found {0} connected triads".format(len(triads)))
-    t0 = time.time()
-    counts = np.zeros(np.max(list(triad_dict.values())) + 1)
-    sample_idx = np.random.choice(len(triads),
-                                  np.minimum(max_num_sampled, len(triads)),
-                                  replace=False)
-    for idx in sample_idx:
-        triad = triads[idx]
-        motif_id = identify_motif(adj[:, triad][triad, :])
-        counts[motif_id] += 1
-    print("Time spent classifying triads: {0}".format(time.time() - t0))
+    p = adj.nnz / (adj.shape[0] * (adj.shape[1] - 1))
+    # Probabilioty that a sorted (!) triple of neurons is each of the triads
+    p_triads = (p**triad_n_edges) * ((1-p)**(6-triad_n_edges))
+    n_triples = adj.shape[0] * (adj.shape[0] - 1) * (adj.shape[0] - 2)
     if return_normalized:
-        return (((len(triads) / len(sample_idx)) * counts).astype(int)) / triad_combinations
-    else:
-        return (((len(triads) / len(sample_idx)) * counts).astype(int))
+        return n_triples * np.array(p_triads)
+    return n_triples * np.array(p_triads) * triad_combinations
 
 
+def count_triads_fully_connected(adj, return_normalized=False):
+    """Counts the numbers of each triadic motif in the matrix adj.
+    
+        Parameters
+        ----------
+        adj : 2d-array
+            Adjacency matrix of a directed network.
+        return_normalized : bool
+            If True return the triad counts divided by the size of each isomorphism class.  That is, the total counts
+            divided by the following array:
+    
+            $[6, 3, 3, 6, 6, 6, 2, 3, 6, 3, 3, 6, 1].$
+    
+        Returns
+        -------
+        1d-array
+            The counts of the various triadic motifs in adj as ordered in Figure 5 [1]_.
+    
+        Notes
+        ------
+        Only connectected motifs are counted, i.e. motifs with less than 2 connections or only a single bidirectional
+        connection are not counted. The connected motifs are ordered as in Figure 5 [1]_.
+    
+        References
+        -------
+    
+        ..[1] Gal, Eyal, et al.
+        ["Rich cell-type-specific network topology in neocortical microcircuitry."](https://www.nature.com/articles/nn.4576)
+        Nature neuroscience 20.7 (2017): 1004-1013.
+    
+        """
+    # Randomly re-order vertices in case their order is non-random with respect
+    # to triads.
+    adj = adj.tocsc()
+    rnd_idx = np.random.permutation(adj.shape[0])
+    adj = adj[np.ix_(rnd_idx, rnd_idx)]
 
+    con_arr = adj.astype(bool).astype(int).toarray()
+    rec_arr = con_arr * con_arr.transpose()
+    uncon_arr = ((con_arr + con_arr.transpose()) == 0).astype(int)
+    uni_arr = (con_arr * (con_arr.transpose() == 0)).astype(int)
+
+    rec_adj = sp.csc_matrix(rec_arr)
+    uni_adj = sp.csc_matrix(uni_arr)
+
+    def sum_nondiag(arr: np.ndarray):
+        return arr.sum() - np.diag(arr).sum()
+
+    triad_counts = [
+        # A->B->C
+        sum_nondiag((uni_adj * uni_adj).toarray() * uncon_arr),
+        # A->B<-C
+        sum_nondiag((uni_adj * uni_adj.transpose()).toarray() * uncon_arr),
+        # A<-B->C
+        sum_nondiag((uni_adj.transpose() * uni_adj).toarray() * uncon_arr),
+        # A->B->C<-A: simplex
+        sum_nondiag((uni_adj * uni_adj).toarray() * uni_arr),
+        # A<->B->C
+        sum_nondiag((rec_adj * uni_adj).toarray() * uncon_arr),
+        # A<->B<-C
+        sum_nondiag((rec_adj * uni_adj.transpose()).toarray() * uncon_arr),
+        # A->B->C->A: cycle
+        sum_nondiag((uni_adj * uni_adj).toarray() * uni_arr.transpose()),
+        # A<->B->C<-A: bi-out
+        sum_nondiag((rec_adj * uni_adj).toarray() * uni_arr),
+        # A<->B<-C<-A: bi-in-out
+        sum_nondiag((rec_adj * uni_adj.transpose()).toarray() * uni_arr),
+        # A<->B<->C: bi-bi
+        sum_nondiag((rec_adj * rec_adj).toarray() * uncon_arr),
+        # A->B<->C<-A: bi-in
+        sum_nondiag((uni_adj * rec_adj).toarray() * uni_arr),
+        # A<->B->C<->A
+        sum_nondiag((rec_adj * uni_adj).toarray() * rec_arr),
+        # A<->B<->C<->A
+        sum_nondiag((rec_adj * rec_adj).toarray() * rec_arr)
+    ]
+    if return_normalized:
+        return np.array(triad_counts)
+    return np.array(triad_counts) * triad_combinations
 
 def _convex_hull(adj, node_properties):# --> topology
     """Return the convex hull of the sub gids in the 3D space using x,y,z position for gids"""
