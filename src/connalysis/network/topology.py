@@ -17,7 +17,7 @@ import pandas as pd
 import logging
 import scipy.sparse as sp
 import pyflagsercount
-import pyflagser
+import flagserpy
 import math
 
 from .local import neighbourhood
@@ -806,7 +806,7 @@ def betti_counts(adj, node_properties=None,
     LOG.info("Compute betti counts for %s-type adjacency matrix and %s-type node properties",
              type(adj), type(node_properties))
 
-    from pyflagser import flagser_unweighted
+    from flagserpy import flagser_unweighted
 
     #Checking matrix
     adj = sp.csr_matrix(adj).astype(bool).astype('int')
@@ -1722,7 +1722,7 @@ def nbc(matrix):
             The normalised Betti coefficient of the graph with adjacency matrix matrix
 
     """
-    flagser_output = pyflagser.flagser_unweighted(matrix, directed=True)
+    flagser_output = flagserpy.flagser_unweighted(matrix, directed=True)
     cells = flagser_output['cell_count']
     bettis = flagser_output['betti']
     while (cells[-1] == 0) and (len(cells) > 1):
