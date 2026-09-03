@@ -55,7 +55,7 @@ Copyright (c) 2025 Open Brain Institute.
   * [Poetry](https://python-poetry.org/)
   * [gcc](https://gcc.gnu.org/) 9+
   * [CMake](https://cmake.org/)
-  * Python 3.9+
+  * Python 3.10+
 
 * Create a virtual environment and install the dependencies
 
