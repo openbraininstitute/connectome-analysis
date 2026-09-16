@@ -953,7 +953,7 @@ def random_geometric_model(pts, pts_x=None, n_neighbors=None, dist_neighbors=Non
     # Fallback: Return empty matrix.
     return sp.csc_matrix((len(pts), len(pts)), dtype=bool)
 
-def stochastic_spread_model(M, r=None, q=10.0,
+def stochastic_spread_model(M, r=None, q=None,
                             sum_exclusion=True, 
                             exclude_candidates=True,
                             decay=1.0,
@@ -970,22 +970,20 @@ def stochastic_spread_model(M, r=None, q=10.0,
     M : sparse.matrix
         Adjacency matrix of the underlying graph to spread on. If data type is float then the weight
         specifies the probability that the corresponding edge is crossed in a step. This weight / probability
-        is further scaled if parameter q is specified. If data type is bool, then q or r _must_ be specified. 
-        If r is specified, data type must be bool. 
+        is further scaled if parameter q is specified. If data type is bool, then q or r _must_ be specified, 
+        but not both. If r is specified, data type must be bool. 
     r : float 
         Spread probability. Must be between 0 and 1.
     q : float 
         Sets the expected number of nodes to spread to in each step. This is done by scaling the weights in
-        M with weights dynamically determined in each step. Set to None to not use this feature. If r is not 
-        None, then q must be None.
+        M with weights dynamically determined in each step. If q is used, then r cannot be used.
     sum_exclusion : bool
         Determines how the node exclusion rule is updated. If True, then once a candidate node has been
         rejected from spread it can not be spread to in any future steps. If False, then it is only 
         excluded in the next step.
     exclude_candidates : bool
-        Determines how the node exclusion rule is updated. If True, then nodes that were candidates in previous
-        steps can not be spread to in future steps. If false, then candidate nodes that were rejected can be 
-        spread to in future steps. 
+        Determines how the node exclusion rule is updated. If False, then only nodes that were successfully spread 
+        to are rejected in future step(s). If True, then also candidates that failed to be spread to are rejected. 
     decay : float
         Must be between 0 and 1. Paramters q or r are multiplied by this value after each step, reducing their value.
         This leads to shorter degree distributions.
@@ -1039,6 +1037,35 @@ def stochastic_spread_model(M, r=None, q=10.0,
         If decay is not between [0, 1]
     ValueError
         If node_can_spread is provided and its length does not match M
+
+    Examples
+    ---------- 
+    stochastic_spread_model(M_float, ...)
+        The probability of spread along an edge is equal to the weight of that edge in M_float
+
+    stochastic_spread_model(M_bool, r=0.1, ...)
+        The probability of spread along an edge of M_bool is 0.1 in each step.
+
+    stochastic_spread_model(M_bool, q=5.5, ...)
+        Spread to all new candidates in the out-neighborhood for a neuron is equally likely. Its 
+        probability is dynamically determined in each step to yield on average 5.5 new nodes for each 
+        individual source.
+
+    stochastic_spread_model(M_bool, q=5.5, tgt_level="mean", ...)
+        Spread to all new candidates is equally likely. Its probability is dynamically determined in 
+        each step to yield on average 5.5 * number_of_sources new nodes.
+
+    stochastic_spread_model(M_float, q=5.5, ...)
+        The probability of spread to a new candidate in the out-neighborhood for a neuron is proportional to 
+        the weights of their connecting edges in M. If multiple paths connect a candidate, the weights are added. 
+        These relative weights are scaled to yield on average 5.5 new nodes per source. This scaling is newly 
+        evaluated in each step.
+
+    stochastic_spread_model(M_float, r=0.1, ...)
+        INVALID
+
+    stochastic_spread_model(M_bool, q=5.5, r=0.1, ...)
+        INVALID
     """
 
     # Checking and setting up input variables
