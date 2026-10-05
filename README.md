@@ -8,7 +8,7 @@
 
 ## Documentation 
 
-See our [**documentation**](https://openbraininstitute.github.io/connectome-analysis/) for detailed explanations including examples and tutorials.
+See our [**documentation**](https://connectome-analysis.readthedocs.io/) for detailed explanations including examples and tutorials.
 
 See our [**source code**](src/connalysis) for implementation details.
 
@@ -86,6 +86,4 @@ poetry run pytest tests
 
 ### Documentation
 
-The documentation is automatically generated from the content of the [docs directory](./docs) and from the docstrings
- of the public signatures of the source code. The documentation is updated and published as a [Github project page
- ](https://pages.github.com/) automatically as part each release.
+The documentation is generated with Sphinx from the content of the [docs directory](./docs) and the docstrings of the public signatures of the source code. It uses the [OBI Sphinx theme](https://github.com/openbraininstitute/obi-sphinx-theme) and is built and published by [Read the Docs](https://readthedocs.org/).

@@ -1,5 +1,10 @@
-## These are utility functions used to restrict analyses to neighborhoods.
+# Local network utilities
 
-::: src.connalysis.network.local
-    options:
-      docstring_style: numpy
+These are utility functions used to restrict analyses to neighborhoods.
+
+```{eval-rst}
+.. automodule:: connalysis.network.local
+   :members:
+   :member-order: alphabetical
+   :show-inheritance:
+```

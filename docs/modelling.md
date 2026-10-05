@@ -1,5 +1,10 @@
-## This page describes functions contained in the `modelling` module used to  model  or parametrize the connectivity of connectomes
+# Modelling
 
-::: src.connalysis.modelling.modelling
-    options:
-      docstring_style: numpy
+This page describes functions contained in the `modelling` module used to model or parametrize the connectivity of connectomes.
+
+```{eval-rst}
+.. automodule:: connalysis.modelling.modelling
+   :members:
+   :member-order: alphabetical
+   :show-inheritance:
+```

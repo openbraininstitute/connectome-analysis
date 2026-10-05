@@ -57,8 +57,9 @@ def run_ER(n, p, threads=8, seed=(None,None)):
     Examples
     --------
     Setting n=3 and p=1 gives the complete digraph on 3 vertices:
-    >>> connalysis.randomization.run_ER(3,1)
-    {'row': [0, 0, 1, 1, 2, 2], 'col': [1, 2, 0, 2, 0, 1]}
+
+        >>> connalysis.randomization.run_ER(3,1)
+        {'row': [0, 0, 1, 1, 2, 2], 'col': [1, 2, 0, 2, 0, 1]}
 
     Raises
     ------
@@ -133,8 +134,9 @@ def run_SBM(n, probs, blocks, threads=8, seed=(None,None)):
     To create an SBM digraph on 4 vertices where the even to
     odd, or odd to even, vertices connect with high probablity (p=0.9)
     and the even to evens or odd to odds connect with low probability (p=0.1):
-    >>> connalysis.randomization.run_SBM(4,np.array([[0.1,0.9],[0.9,0.1]]),np.array([0,1,0,1]))
-    {'row': [0, 0, 1, 1, 1, 2, 2, 3, 3], 'col': [1, 3, 0, 2, 3, 1, 3, 0, 2]
+
+        >>> connalysis.randomization.run_SBM(4,np.array([[0.1,0.9],[0.9,0.1]]),np.array([0,1,0,1]))
+        {'row': [0, 0, 1, 1, 1, 2, 2, 3, 3], 'col': [1, 3, 0, 2, 3, 1, 3, 0, 2]}
 
 
     Raises
@@ -145,7 +147,7 @@ def run_SBM(n, probs, blocks, threads=8, seed=(None,None)):
     References
     ----------
     [1] P.W. Holland, K. Laskey, S. Leinhardt,
-    ["Stochastic Blockmodels: First Steps"](https://www.sciencedirect.com/science/article/pii/0378873383900217),
+    `Stochastic Blockmodels: First Steps <https://www.sciencedirect.com/science/article/pii/0378873383900217>`_,
     Soc Networks, 5-2, pp. 109-137, 1982
 
     """
@@ -169,7 +171,7 @@ def run_DD2(n,a,b,xyz,threads=8, seed=(None,None)):
     b : float
         Absolute value of power of exponent in probability function
     xyz : (n,3)-numpy array of floats
-        Co-ordinates of vertices in $\mathbb{R}^3$
+        Co-ordinates of vertices in :math:`\mathbb{R}^3`
     threads : int
         Number of parallel threads to be used
     seed : pair of ints
@@ -182,8 +184,8 @@ def run_DD2(n,a,b,xyz,threads=8, seed=(None,None)):
 
     See Also
     --------
-    [conn_prob_2nd_order_model](modelling.md#src.connalysis.modelling.modelling.conn_prob_2nd_order_model) :
-    The modelling function from which the parameters ``a`` and ``b``can be obtained.
+    :func:`~connalysis.modelling.modelling.conn_prob_2nd_order_model`
+        The modelling function from which the parameters ``a`` and ``b`` can be obtained.
 
 
     """
@@ -231,8 +233,8 @@ def run_DD2_model(adj, node_properties,
 
     See Also
     --------
-    [conn_prob_2nd_order_model](modelling.md#src.connalysis.modelling.modelling.conn_prob_2nd_order_model) :
-    The modelling function from which model_params_dd2 can be obtained.
+    :func:`~connalysis.modelling.modelling.conn_prob_2nd_order_model`
+        The modelling function from which model_params_dd2 can be obtained.
 
     """
 
@@ -277,7 +279,7 @@ def run_DD3(n,a1,b1,a2,b2,xyz,depths,threads=8, seed=(None,None)):
     b2 : float
         Absolute value of power of exponent in probability function for positive depth
     xyz : (n,3)-numpy array of floats
-        Co-ordinates of vertices in $\mathbb{R}^3$
+        Co-ordinates of vertices in :math:`\mathbb{R}^3`
     threads : int
         Number of parallel threads to be used
     seed : pair of ints
@@ -291,8 +293,8 @@ def run_DD3(n,a1,b1,a2,b2,xyz,depths,threads=8, seed=(None,None)):
 
     See Also
     --------
-    [conn_prob_3rd_order_model](modelling.md#src.connalysis.modelling.modelling.conn_prob_3rd_order_model) :
-    The modelling function from which the parameters ``a1/a2`` and ``b1/b2``can be obtained.
+    :func:`~connalysis.modelling.modelling.conn_prob_3rd_order_model`
+        The modelling function from which the parameters ``a1/a2`` and ``b1/b2`` can be obtained.
 
 
 
@@ -321,7 +323,7 @@ def run_DD2_block_pre(n, probs, blocks, xyz, threads=8, seed=(None,None)):
     blocks : numpy array of ints
         shape=(n,). The i'th entry is which block vertex i belongs to.
     xyz : (n,3)-numpy array of floats
-        Co-ordinates of vertices in $\mathbb{R}^3$
+        Co-ordinates of vertices in :math:`\mathbb{R}^3`
     threads : int
         Number of parallel threads to be used
     seed : pair of ints
@@ -340,14 +342,14 @@ def run_DD2_block_pre(n, probs, blocks, xyz, threads=8, seed=(None,None)):
 
     See Also
     --------
-    [run_SBM](randomization.md#src.connalysis.randomization.randomization.run_SBM):
-    Function which runs the stochastic block model
+    :func:`~connalysis.randomization.randomization.run_SBM`
+        Function which runs the stochastic block model
 
-    [run_DD2](randomization.md#src.connalysis.randomization.randomization.run_DD2) :
-    Function which runs the 2nd distance dependent model
+    :func:`~connalysis.randomization.randomization.run_DD2`
+        Function which runs the 2nd distance dependent model
 
-    [run_DD2_block](randomization.md#src.connalysis.randomization.randomization.run_DD2_block) :
-    Similar function that also accounts for the block of the target vertex
+    :func:`~connalysis.randomization.randomization.run_DD2_block`
+        Similar function that also accounts for the block of the target vertex
 
     """
 
@@ -375,7 +377,7 @@ def run_DD2_block(n, probs, blocks, xyz, threads, seed=(None,None)):
     blocks : numpy array of ints
         shape=(n,). The i'th entry is which block vertex i belongs to.
     xyz : (n,3)-numpy array of floats
-        Co-ordinates of vertices in $\mathbb{R}^3$
+        Co-ordinates of vertices in :math:`\mathbb{R}^3`
     threads : int
         Number of parallel threads to be used
     seed : pair of ints
@@ -394,14 +396,14 @@ def run_DD2_block(n, probs, blocks, xyz, threads, seed=(None,None)):
 
     See Also
     --------
-    [run_DD2](randomization.md#src.connalysis.randomization.randomization.run_DD2) :
-    Function which runs the 2nd distance dependent model
+    :func:`~connalysis.randomization.randomization.run_DD2`
+        Function which runs the 2nd distance dependent model
 
-    [run_SBM](randomization.md#src.connalysis.randomization.randomization.run_SBM) :
-    Function which runs the stochastic block model
+    :func:`~connalysis.randomization.randomization.run_SBM`
+        Function which runs the stochastic block model
 
-    [run_DD2_block_pre](randomization.md#src.connalysis.randomization.randomization.run_DD2_block_pre) :
-    Similar function that only accounts for the block of the source vertex
+    :func:`~connalysis.randomization.randomization.run_DD2_block_pre`
+        Similar function that only accounts for the block of the source vertex
 
     """
     if seed[0]==None or seed[1]==None:
@@ -517,11 +519,11 @@ def configuration_model(M, seed = None):
 
     See Also
     --------
-    [run_SBM](randomization.md#src.connalysis.randomization.randomization.run_SBM) :
-    Function which runs the stochastic block model
+    :func:`~connalysis.randomization.randomization.run_SBM`
+        Function which runs the stochastic block model
 
-    [run_DD2](randomization.md#src.connalysis.randomization.randomization.run_DD2) :
-    Function which runs the 2nd distance dependent model
+    :func:`~connalysis.randomization.randomization.run_DD2`
+        Function which runs the 2nd distance dependent model
     """
     adj=M.copy().tocoo()
     generator = np.random.default_rng(seed)
@@ -552,12 +554,12 @@ def adjusted_ER(adj, seed=None):
 
     See Also
     --------
-    [underlying_model](randomization.md#src.connalysis.randomization.randomization.underlying_model) :
-    Function which returns a digraph with the same  underlying undirected graph
+    :func:`~connalysis.randomization.randomization.underlying_model`
+        Function which returns a digraph with the same  underlying undirected graph
     and same number of reciprocal connections
 
-    [bishuffled_model](randomization.md#src.connalysis.randomization.randomization.bishuffled_model) :
-    Function which returns a digraph with shuffled reciprocal connections
+    :func:`~connalysis.randomization.randomization.bishuffled_model`
+        Function which returns a digraph with shuffled reciprocal connections
     """
     from connalysis.network.topology import rc_submatrix
     from .rand_utils import adjust_bidirectional_connections
@@ -588,11 +590,11 @@ def underlying_model(adj, seed: int=None):
 
     See Also
     --------
-    [adjusted_ER](randomization.md#src.connalysis.randomization.randomization.adjusted_ER) :
-    Function to generate an Erdos  Renyi model with adjusted bidirectional connections
+    :func:`~connalysis.randomization.randomization.adjusted_ER`
+        Function to generate an Erdos  Renyi model with adjusted bidirectional connections
 
-    [bishuffled_model](randomization.md#src.connalysis.randomization.randomization.bishuffled_model) :
-    Function which returns a digraph with shuffled reciprocal connections
+    :func:`~connalysis.randomization.randomization.bishuffled_model`
+        Function which returns a digraph with shuffled reciprocal connections
     """
     from connalysis.network.topology import rc_submatrix
     from .rand_utils import  add_bidirectional_connections
@@ -618,11 +620,11 @@ def bishuffled_model(adj, seed = None):
 
     See Also
     --------
-    [adjusted_ER](randomization.md#src.connalysis.randomization.randomization.adjusted_ER) :
-    Function to generate an Erdos  Renyi model with adjusted bidirectional connections
+    :func:`~connalysis.randomization.randomization.adjusted_ER`
+        Function to generate an Erdos  Renyi model with adjusted bidirectional connections
 
-    [underlying_model](randomization.md#src.connalysis.randomization.randomization.underlying_model) :
-    Function which returns a digraph with the same  underlying undirected graph
+    :func:`~connalysis.randomization.randomization.underlying_model`
+        Function which returns a digraph with the same  underlying undirected graph
     and same number of reciprocal connections
     """
     from connalysis.network.topology import rc_submatrix

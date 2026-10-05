@@ -100,7 +100,7 @@ def node_stats_participation(participation, vals, condition=operator.eq, dims=No
     participation : DataFrame
         DataFrame of node participation with index the nodes in nodes of an NxN matrix to consider,
         columns are dimensions and values are node participation computed with
-        [node_participation](network_topology.md#src.connalysis.network.topology.node_participation).
+        :func:`connalysis.network.topology.node_participation`.
     values : Series
         pandas Series with index the nodes of the NxN matrix of where node participation has been computed
         and vals the values on that node to be averaged.
@@ -120,11 +120,11 @@ def node_stats_participation(participation, vals, condition=operator.eq, dims=No
 
     See Also
     --------
-    [node_stats_per_position_single](network_stats.md#src.connalysis.network.stats.node_stats_per_position_single):
+    :func:`connalysis.network.stats.node_stats_per_position_single`:
     A similar function where the position of the nodes in the simplex are taken into account.  Note in particular that
     if condition = ``operator.ge`` the weighted_mean of this analyisis is equivalent than the value given by this function for position ``all``.
     However the computation using
-    [node_participation](network_topology.md#src.connalysis.network.topology.node_participation)
+    :func:`connalysis.network.topology.node_participation`
     is more efficient.
     """
     par_df = participation.copy()
@@ -187,7 +187,7 @@ def node_stats_neighborhood(values, adj=None, pre=True, post=True, all_nodes=Tru
 
     See Also
     --------
-    [neighborhood_indices] (network_local.md#src.connalysis.network.local.neighborhood_indices):
+    :func:`connalysis.network.local.neighborhood_indices`:
     Function to precompute the neighborhood_indices that can be used if precomputed is set ``True``.
     Precomputing the neighborhoods would increase efficiency if multiple properties are averaged across neighborhoods.
     """
