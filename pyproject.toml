@@ -10,8 +10,8 @@ authors = [
 license = "AGPL-3.0-or-later"
 readme = "README.md"
 
-documentation = "https://openbraininstitute.github.io/connectome-analysis/"
-homepage = "https://openbraininstitute.github.io/connectome-analysis/"
+documentation = "https://connectome-analysis.readthedocs.io/"
+homepage = "https://connectome-analysis.readthedocs.io/"
 repository = "https://github.com/openbraininstitute/connectome-analysis.git"
 
 classifiers = [
@@ -56,8 +56,9 @@ tables = [
 
 [tool.poetry.group.dev.dependencies]
 black = "*"
-mkdocstrings = {version = ">=0.18", extras = ["python"]}
-mkdocs-material = "*"
+sphinx = {version = ">=8.2,<10", python = ">=3.11"}
+obi-sphinx-theme = {version = ">=2.0.0", python = ">=3.11"}
+myst-parser = {version = "4.0.1", python = ">=3.11"}
 pytest = "*"
 pytest-github-actions-annotate-failures = "*"
 pytest-cov = "*"

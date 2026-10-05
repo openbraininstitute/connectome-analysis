@@ -1,5 +1,10 @@
-## These functions describe topologically motivated network metrics.
+# Network topology
 
-::: src.connalysis.network.topology
-    options:
-      docstring_style: numpy
+These functions describe topologically motivated network metrics.
+
+```{eval-rst}
+.. automodule:: connalysis.network.topology
+   :members:
+   :member-order: alphabetical
+   :show-inheritance:
+```

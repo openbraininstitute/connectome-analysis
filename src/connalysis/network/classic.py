@@ -625,10 +625,10 @@ def ccc(matrix):
     The formula is taken from the following paper.
 
     [1] G. Fagiolo, "Clustering in complex directed networks", 2006;
-            [DOI: 10.1103/PhysRevE.76.026107]().
+            [DOI: 10.1103/PhysRevE.76.026107](https://doi.org/10.1103/PhysRevE.76.026107).
 
     [2] Conceição, Pedro, et al. "An application of neighbourhoods in digraphs to the classification of binary dynamics.", 2022
-            [DOI: 10.1162/netn_a_00228](). 
+            [DOI: 10.1162/netn_a_00228](https://doi.org/10.1162/netn_a_00228).
 
     """
     # We only analyze the udnerlying connectivity not the weights

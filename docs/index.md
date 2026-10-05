@@ -1,8 +1,8 @@
-# Connectome analysis
+# Connectome Analysis
 
-### General analises of connectomes from a topological perspective
+## General analyses of connectomes from a topological perspective
 
-![banner](banner_BPP_connalysis.jpg)
+![Connectome Analysis banner](banner_BPP_connalysis.jpg)
 
 ## Overview
 
@@ -12,35 +12,31 @@ This package provides a library of general functions to analyze connectomes. Fun
 * [Randomization](randomization.md): Generation of randomized controls of connectomes
 * [Network](network.md): Network analyses based on metrics of different types
 
+## Tutorials
 
-## </br> Tutorials
+Check out a few short tutorials showing:
 
-Check out a few short tutorials showing: 
+* How to implement most [unweighted topological network metrics](https://github.com/openbraininstitute/connectome-analysis/blob/master/tutorials/TDA_unweighted_networks.ipynb).
+* How to compute [triad counts](https://github.com/openbraininstitute/connectome-analysis/blob/master/tutorials/counting_triads.ipynb).
+* How to [model and extract](https://github.com/openbraininstitute/connectome-analysis/blob/master/tutorials/modelling.ipynb) distance dependent parameters from a connectome with a geometric embedding.
+* How to generate [randomized controls of a given connectome](https://github.com/openbraininstitute/connectome-analysis/blob/master/tutorials/randomization.ipynb).
 
-* How to implement most
-[unweighted topological network metrics.](https://github.com/danielaegassan/connectome_analysis/blob/master/tutorials/TDA_unweighted_networks.ipynb)
-* How to compute 
-[triad counts.](https://github.com/danielaegassan/connectome_analysis/blob/master/tutorials/counting_triads.ipynb)
-* How to 
-[model and extract](https://github.com/danielaegassan/connectome_analysis/blob/master/tutorials/modelling.ipynb)
-distance dependent parameters from connectoms with a geometric embedding.
-* How to generate 
-[randomized controls of a given connectome.](https://github.com/danielaegassan/connectome_analysis/blob/master/tutorials/randomization.ipynb)
+## Installation
 
-## </br> Installation 
+To install, run the following command in your terminal:
 
-To install, in your terminal run: 
-
-```
-pip install git+https://github.com/danielaegassan/connectome_analysis.git
+```console
+pip install git+https://github.com/openbraininstitute/connectome-analysis.git
 ```
 
-For the installation to work you require: 
+For development installation requirements, see the [project README](https://github.com/openbraininstitute/connectome-analysis#development-installation).
 
-* [gcc](https://gcc.gnu.org/) 9+
-* [CMake](https://cmake.org/)
-* Python 3.8+
+```{toctree}
+:maxdepth: 2
+:caption: Contents:
 
-Python requirements will be installed directly and are listed 
-[here](https://github.com/danielaegassan/connectome_analysis/blob/e4e23e614f95d7eab8945fcb91d0cf8ecbbe47c0/requirements.txt).
+modelling
+randomization
+network
+```
 
