@@ -47,7 +47,12 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.3
         with:
           python-version: "3.10"
-      - run: uv sync --only-group test --resolution lowest-direct
+      # Not `uv sync`: that also resolves the other groups (jupyter, seaborn, ...) to their oldest versions
+      - run: |
+          uv venv
+          uv pip install --resolution lowest-direct -r pyproject.toml --extra all
+          uv pip install --no-deps -e .
+          uv pip install pytest pytest-cov
       - run: uv run --no-sync pytest
 
   build:

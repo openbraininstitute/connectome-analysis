@@ -21,7 +21,12 @@ def test_same_as_original(case, golden_store):
     expected = golden_store(case)
     actual = canon.snapshot(case.run)
     canon.assert_same(
-        actual, expected, rtol=case.rtol, atol=case.atol, check_message=case.check_message
+        actual,
+        expected,
+        rtol=case.rtol,
+        atol=case.atol,
+        check_message=case.check_message,
+        structure_only="machine_dependent" in case.tags,
     )
 
 

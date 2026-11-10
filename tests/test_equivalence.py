@@ -450,3 +450,20 @@ def test_strong_components_of_a_matrix_that_is_not_square_is_an_error_as_in_scip
         strong_components(sp.csr_matrix(np.ones((3, 4))))
     with pytest.raises(ValueError, match="shape"):
         C.connected_components(sp.csr_matrix(np.ones((3, 4))), directed=True, connection="strong")
+
+
+def test_betti_numbers_in_dimensions_without_approximation_are_exact():
+    """flagser's approximation is a heuristic whose numbers differ between machines, so the golden cases of it
+    only pin the shape of the result; here the dimensions that are not approximated must be exact."""
+    adj = planted(40, 0.1, seed=3)
+    exact = T.betti_counts(adj, max_dim=4)
+    for approximation in ([-1, 3, -1, -1, -1], [-1, -1, 2, 2, -1], [-1, -1, -1, -1, 4], [-1]):
+        padded = approximation + [-1] * (5 - len(approximation))
+        got = T.betti_counts(adj, approximation=approximation, max_dim=4)
+        pd.testing.assert_index_equal(got.index, exact.index)
+        for dim, value in enumerate(padded):
+            if value == -1:
+                assert got[dim] == exact[dim]
+    pd.testing.assert_series_equal(
+        T.betti_counts(adj, approximation=[100000] * 5, max_dim=4), exact
+    )

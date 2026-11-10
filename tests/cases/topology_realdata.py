@@ -213,7 +213,7 @@ def _():
     return {t: T.betti_counts(adj, simplex_type=t) for t in TYPES}
 
 
-@case("topology.realdata.betti_counts_variants")
+@case("topology.realdata.betti_counts_variants", tags=("machine_dependent",))
 def _():
     adj, _ = _first(300)
     return {

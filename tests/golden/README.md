@@ -11,6 +11,11 @@ pandas 2.3.3, statsmodels 0.14.6 for the one function that used it), with `numpy
 functions of the original need it and numpy 2 removed it.  The current code reproduces them on that stack and on
 scipy 1.18, numpy 2.5 and pandas 3.
 
+The Betti counts that use flagser's approximation (cases tagged `machine_dependent`) are the exception: flagser skips
+cells with a heuristic whose numbers differ between machines (CI's differ from the ones recorded here), although the
+original and the rewrite give flagser identical matrices. Those cases pin the shape, index and dtypes of the result only;
+`tests/test_equivalence.py` checks that the dimensions without approximation are exact.
+
 ## Regenerating
 
 You should not need to: the files record the behaviour of a release, not of the current code.  If a case is added or

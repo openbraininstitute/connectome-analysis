@@ -117,7 +117,7 @@ def _():
 # ---- approximation
 
 
-@case("topology.betti_counts.approximation_values")
+@case("topology.betti_counts.approximation_values", tags=("machine_dependent",))
 def _():
     adj = _graph()
     return {
@@ -135,7 +135,9 @@ def _():
     }
 
 
-@case("topology.betti_counts.approximation_mixed_with_exact_dimensions")
+@case(
+    "topology.betti_counts.approximation_mixed_with_exact_dimensions", tags=("machine_dependent",)
+)
 def _():
     adj = _graph()
     return {
@@ -151,7 +153,7 @@ def _():
     }
 
 
-@case("topology.betti_counts.approximation_list_shorter_than_max_dim")
+@case("topology.betti_counts.approximation_list_shorter_than_max_dim", tags=("machine_dependent",))
 def _():
     # padded on the right with -1 (exact computation)
     adj = _graph()
@@ -161,7 +163,10 @@ def _():
     }
 
 
-@case("topology.betti_counts.approximation_list_equal_to_max_dim_plus_one")
+@case(
+    "topology.betti_counts.approximation_list_equal_to_max_dim_plus_one",
+    tags=("machine_dependent",),
+)
 def _():
     adj = _graph()
     return {
@@ -170,7 +175,7 @@ def _():
     }
 
 
-@case("topology.betti_counts.approximation_list_longer_than_max_dim")
+@case("topology.betti_counts.approximation_list_longer_than_max_dim", tags=("machine_dependent",))
 def _():
     # sliced to max_dim + 1 entries
     adj = _graph()
@@ -185,7 +190,10 @@ def _():
     }
 
 
-@case("topology.betti_counts.approximation_with_unbounded_max_dim_continues_exactly")
+@case(
+    "topology.betti_counts.approximation_with_unbounded_max_dim_continues_exactly",
+    tags=("machine_dependent",),
+)
 def _():
     # max_dim=[] : the dimensions beyond the list are computed without approximation
     adj = _graph()
@@ -195,7 +203,7 @@ def _():
     }
 
 
-@case("topology.betti_counts.approximation_with_other_simplex_types")
+@case("topology.betti_counts.approximation_with_other_simplex_types", tags=("machine_dependent",))
 def _():
     adj = _graph()
     return {
@@ -205,7 +213,7 @@ def _():
     }
 
 
-@case("topology.betti_counts.approximation_as_tuple")
+@case("topology.betti_counts.approximation_as_tuple", tags=("machine_dependent",))
 def _():
     return T.betti_counts(_graph(), approximation=(1, 1, 1))
 

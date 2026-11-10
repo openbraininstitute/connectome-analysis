@@ -185,7 +185,15 @@ def _first_difference(a: list, e: list) -> str:
     return f"lengths {len(a)} != {len(e)}"
 
 
-def _diff(a: Any, e: Any, path: str, rtol: float, atol: float, out: list[str]) -> None:
+def _diff(
+    a: Any,
+    e: Any,
+    path: str,
+    rtol: float,
+    atol: float,
+    out: list[str],
+    structure_only: bool = False,
+) -> None:
     if len(out) >= 8:
         return
     if type(a) is not type(e) and not (isinstance(a, (int, float)) and isinstance(e, (int, float))):
@@ -199,8 +207,8 @@ def _diff(a: Any, e: Any, path: str, rtol: float, atol: float, out: list[str]) -
         for key in e:
             if key == "data" and kind in ("ndarray", "matrix", "sparse"):
                 continue
-            _diff(a[key], e[key], f"{path}.{key}", rtol, atol, out)
-        if kind in ("ndarray", "matrix", "sparse") and not out:
+            _diff(a[key], e[key], f"{path}.{key}", rtol, atol, out, structure_only)
+        if kind in ("ndarray", "matrix", "sparse") and not out and not structure_only:
             dtype, a_data, e_data = e["dtype"], a["data"], e["data"]
             if kind != "sparse" and dtype == "object":
                 _diff(a_data, e_data, f"{path}.data", rtol, atol, out)
@@ -217,7 +225,7 @@ def _diff(a: Any, e: Any, path: str, rtol: float, atol: float, out: list[str]) -
             out.append(f"{path}: length {len(a)} != {len(e)}")
             return
         for i, (x, y) in enumerate(zip(a, e)):
-            _diff(x, y, f"{path}[{i}]", rtol, atol, out)
+            _diff(x, y, f"{path}[{i}]", rtol, atol, out, structure_only)
     elif isinstance(e, float) or isinstance(a, float):
         if not _close([a], [e], rtol, atol):
             out.append(f"{path}: {a!r} != {e!r}")
@@ -232,8 +240,12 @@ def assert_same(
     rtol: float = 1e-10,
     atol: float = 1e-12,
     check_message: bool = False,
+    structure_only: bool = False,
 ) -> None:
-    """Fail with a short description of the first differences between two snapshots."""
+    """Fail with a short description of the first differences between two snapshots.
+
+    ``structure_only`` leaves the values of arrays out: types, shapes, dtypes and indexes still have to match.
+    """
     if expected["t"] == "error" and actual["t"] == "error":
         problems = (
             []
@@ -249,7 +261,7 @@ def assert_same(
         problems = [f"got {got}{detail}, expected {want}"]
     else:
         problems = []
-        _diff(actual["value"], expected["value"], "$", rtol, atol, problems)
+        _diff(actual["value"], expected["value"], "$", rtol, atol, problems, structure_only)
     assert not problems, "result differs from the original implementation:\n  " + "\n  ".join(
         problems
     )
