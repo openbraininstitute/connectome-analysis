@@ -49,8 +49,8 @@ python = ">=3.10"
 numpy = "*"
 pandas = "*"
 scipy = [
-  { version = "<1.16", python = ">=3.10,<3.14" },
-  { version = ">=1.17", python = ">=3.14" }
+  { version = ">=1.15", python = ">=3.10,<3.14" },
+  { version = ">=1.16.1", python = ">=3.14" }
 ]
 matplotlib = "*"
 tqdm="*"
