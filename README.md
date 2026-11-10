@@ -12,10 +12,23 @@ See our [**documentation**](https://connectome-analysis.readthedocs.io/) for det
 
 See our [**source code**](src/connalysis) for implementation details.
 
-## User installation
+## Installation
 
 ```sh
-pip install git+https://github.com/openbraininstitute/connectome-analysis.git
+pip install connectome-analysis
+```
+
+Python 3.10 or newer. There are no pinned upper bounds on numpy, scipy or pandas, so the package installs next to
+other scientific packages. The graph algorithms come from compiled packages (`flagserpy`, `pyflagsercount` and
+`bigrandomgraphs`) that ship wheels for the common platforms; on Python 3.14 and on Linux ARM, where they do not yet,
+pip builds them from source and needs a C++ compiler.
+
+Optional extras:
+
+```sh
+pip install "connectome-analysis[plot]"   # matplotlib, for the figures of the model building
+pip install "connectome-analysis[io]"     # pytables and pyarrow, to read .h5 and .feather neuron tables
+pip install "connectome-analysis[all]"    # both
 ```
 
 ---
@@ -48,42 +61,31 @@ Copyright (c) 2025 Open Brain Institute.
 
 ---
 
-## Development installation
-
-* Clone this repository
-* Requirements:
-  * [Poetry](https://python-poetry.org/)
-  * [gcc](https://gcc.gnu.org/) 9+
-  * [CMake](https://cmake.org/)
-  * Python 3.10+
-
-* Create a virtual environment and install the dependencies
+## Development
 
 ```sh
-poetry install
+git clone https://github.com/openbraininstitute/connectome-analysis.git
+cd connectome-analysis
+uv sync            # creates .venv with the package, the tests, ruff and the documentation tools
+uv run pytest      # the tests
+uv run ruff check . && uv run ruff format --check .
 ```
 
-CMake may have difficulties to find the right compilers to compile the C++ code. 
-If that is the case, you have to specify the path to the compilers yourself:
+Without uv: `pip install -e . --group dev` (pip 25.1 or newer).
 
-```sh
-CC=/path/to/gcc CXX=/path/to/g++ poetry install
-```
+### Tests
 
-This is especially important on MacOS.
-
-* Activate the virtual environment
-
-```sh
-poetry shell
-```
-
-* Testing
-
-```sh
-poetry run pytest tests
-```
+`tests/test_golden.py` checks that every function returns what the original implementation (release 1.2.0) returned:
+the cases in `tests/cases` build deterministic inputs and call the public API, and the results of the original are
+stored in `tests/golden`.  A change in behaviour fails these tests.  The few results that changed on purpose are listed,
+with the reason, in `tests/support/intentional.py` and tested in `tests/test_changes.py`; see `tests/golden/README.md`
+before regenerating anything.  `tests/test_equivalence.py` compares the faster algorithms with plain definitions of the
+same quantities on random inputs.
 
 ### Documentation
 
-The documentation is generated with Sphinx from the content of the [docs directory](./docs) and the docstrings of the public signatures of the source code. It uses the [OBI Sphinx theme](https://github.com/openbraininstitute/obi-sphinx-theme) and is built and published by [Read the Docs](https://readthedocs.org/).
+The documentation is generated with Sphinx from the content of the [docs directory](./docs) and the docstrings of the public signatures of the source code. It uses the [OBI Sphinx theme](https://github.com/openbraininstitute/obi-sphinx-theme) and is built and published by [Read the Docs](https://readthedocs.org/).  Build it locally with `uv run sphinx-build docs docs/_build`.
+
+### Releases
+
+The version comes from the git tag (setuptools-scm).  Publishing a GitHub release builds the package and uploads it to PyPI.

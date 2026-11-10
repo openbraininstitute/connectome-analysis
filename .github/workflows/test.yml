@@ -1,21 +1,71 @@
 name: Test
 
 on:
-  pull_request:
   push:
-    branches:
-      - "**"
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+      - run: uv run --only-group lint ruff check .
+      - run: uv run --only-group lint ruff format --check .
+
+  test:
+    name: test (py${{ matrix.python-version }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        include:
+          - os: macos-latest
+            python-version: "3.12"
     steps:
       - uses: actions/checkout@v7
-      - uses: ./.github/actions/python-poetry-env
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           python-version: ${{ matrix.python-version }}
-      - run: poetry run pytest tests
+      # No lock file: the newest releases of every dependency are tested, so a breaking release shows up here first.
+      - run: uv sync --only-group test
+      - run: uv run --no-sync pytest --cov --cov-report=term-missing
+
+  lowest-dependencies:
+    # The lower bounds in pyproject.toml must really work.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          python-version: "3.10"
+      # Not `uv sync`: that also resolves the other groups (jupyter, seaborn, ...) to their oldest versions
+      - run: |
+          uv venv
+          uv pip install --resolution lowest-direct -r pyproject.toml --extra all
+          uv pip install --no-deps -e .
+          uv pip install pytest pytest-cov
+      - run: uv run --no-sync pytest
+
+  build:
+    # What users get from PyPI: build, install the wheel into a clean environment, import it.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v10.3.3
+      - run: uv build
+      - run: uvx twine check dist/*
+      - run: |
+          uv venv --python 3.13 /tmp/clean
+          uv pip install --python /tmp/clean/bin/python dist/*.whl
+          /tmp/clean/bin/python -c "import connalysis; from connalysis.network import simplex_counts; print(connalysis.__version__)"

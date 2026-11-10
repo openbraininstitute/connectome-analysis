@@ -26,10 +26,12 @@ Check out a few short tutorials showing:
 To install, run the following command in your terminal:
 
 ```console
-pip install git+https://github.com/openbraininstitute/connectome-analysis.git
+pip install connectome-analysis
 ```
 
-For development installation requirements, see the [project README](https://github.com/openbraininstitute/connectome-analysis#development-installation).
+Add the extras `plot` (matplotlib, for the figures of the model building) and `io` (pytables and pyarrow, to read `.h5` and `.feather` neuron tables) with `pip install "connectome-analysis[all]"`.
+
+For the development setup, see the [project README](https://github.com/openbraininstitute/connectome-analysis#development).
 
 ```{toctree}
 :maxdepth: 2

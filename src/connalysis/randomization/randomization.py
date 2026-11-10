@@ -9,33 +9,39 @@
 
 # IMPORTS #
 import logging
+
 import numpy as np
 import scipy.sparse as sp
-import bigrandomgraphs as gm
-import pandas as pd
-
 from scipy.spatial import KDTree
 
 from connalysis.randomization.rand_utils import (
-    evaluate_probs, connection_df_to_csc_matrix, direction_or_distance_dependent_w, evaluate_per_node_weights
+    connection_df_to_csc_matrix,
+    direction_or_distance_dependent_w,
+    evaluate_per_node_weights,
+    evaluate_probs,
 )
 
-LOG = logging.getLogger("connectome-analysis-randomization")
-LOG.setLevel("INFO")
-logging.basicConfig(format="%(asctime)s %(levelname)-8s %(message)s",
-                    level=logging.INFO,
-                    datefmt="%Y-%m-%d %H:%M:%S")
+LOG = logging.getLogger(__name__)
+
+
+def _gm():
+    """The compiled random graph generators of ``bigrandomgraphs``, imported when first needed."""
+    import bigrandomgraphs
+
+    return bigrandomgraphs
+
 
 #######################################################
 ################# PROBABILITY MODELS  #################
 #######################################################
 
+
 def _dict_to_coo(adj, N):
     # Utility function to format dict into scipy.sparse.coo
-    return sp.coo_matrix((np.ones(len(adj['row'])), (adj['row'], adj['col'])), shape=(N, N))
+    return sp.coo_matrix((np.ones(len(adj["row"])), (adj["row"], adj["col"])), shape=(N, N))
 
 
-def run_ER(n, p, threads=8, seed=(None,None)):
+def run_ER(n, p, threads=8, seed=(None, None)):
     """Creates an Erdos Renyi digraph.
 
     Parameters
@@ -67,14 +73,15 @@ def run_ER(n, p, threads=8, seed=(None,None)):
         If p is not between 0 and 1
 
     """
-    assert (p >= 0 and p <= 1), "p must be between 0 and 1"
-    if seed[0]==None or seed[1]==None:
-        adj = gm.ER(n,p,threads)
+    assert p >= 0 and p <= 1, "p must be between 0 and 1"
+    if seed[0] is None or seed[1] is None:
+        adj = _gm().ER(n, p, threads)
     else:
-        adj = gm.ER(n,p,threads,seed[0],seed[1])
-    return _dict_to_coo(adj,n)
+        adj = _gm().ER(n, p, threads, seed[0], seed[1])
+    return _dict_to_coo(adj, n)
 
-def ER_model(adj, threads=8, seed=(None,None)):
+
+def ER_model(adj, threads=8, seed=(None, None)):
     """Creates an Erdos Renyi digraph.
 
     Parameters
@@ -100,14 +107,13 @@ def ER_model(adj, threads=8, seed=(None,None)):
     """
     assert adj.shape[0] == adj.shape[1], "The matrix is not square"
     n = adj.shape[0]
-    p = adj.astype(bool).sum()/((n)*(n-1))
+    p = adj.astype(bool).sum() / ((n) * (n - 1))
     if isinstance(seed, int):
-      seed=(seed,seed)
+        seed = (seed, seed)
     return run_ER(n=n, p=p, threads=threads, seed=seed)
 
 
-
-def run_SBM(n, probs, blocks, threads=8, seed=(None,None)):
+def run_SBM(n, probs, blocks, threads=8, seed=(None, None)):
     """Creates a random digraph using the stochastic block model.
 
     Parameters
@@ -152,14 +158,14 @@ def run_SBM(n, probs, blocks, threads=8, seed=(None,None)):
 
     """
 
-    if seed[0]==None or seed[1]==None:
-        adj = gm.SBM(n, probs, blocks, threads)
+    if seed[0] is None or seed[1] is None:
+        adj = _gm().SBM(n, probs, blocks, threads)
     else:
-        adj = gm.SBM(n, probs, blocks, threads, seed[0], seed[1])
+        adj = _gm().SBM(n, probs, blocks, threads, seed[0], seed[1])
     return _dict_to_coo(adj, n)
 
 
-def run_DD2(n,a,b,xyz,threads=8, seed=(None,None)):
+def run_DD2(n, a, b, xyz, threads=8, seed=(None, None)):
     r"""Creates a random digraph using the 2nd-order probability model.
 
     Parameters
@@ -189,16 +195,22 @@ def run_DD2(n,a,b,xyz,threads=8, seed=(None,None)):
 
 
     """
-    if seed[0]==None or seed[1]==None:
-        adj = gm.DD2(n,a,b,xyz,threads)
+    if seed[0] is None or seed[1] is None:
+        adj = _gm().DD2(n, a, b, xyz, threads)
     else:
-        adj = gm.DD2(n,a,b,xyz,threads,seed[0],seed[1])
-    return _dict_to_coo(adj,n)
+        adj = _gm().DD2(n, a, b, xyz, threads, seed[0], seed[1])
+    return _dict_to_coo(adj, n)
 
-def run_DD2_model(adj, node_properties,
-                  model_params_dd2=None, #an analysis that could be loaded from the pipeline
-                  coord_names= ['x', 'y', 'z'],
-                  threads=8, return_params=False, **config_dict):
+
+def run_DD2_model(
+    adj,
+    node_properties,
+    model_params_dd2=None,  # an analysis that could be loaded from the pipeline
+    coord_names=["x", "y", "z"],  # noqa: B006
+    threads=8,
+    return_params=False,
+    **config_dict,
+):
     """Wrapper for fitting a model and generating a random control graph based on 2nd order distance dependence model.
 
     Parameters
@@ -239,31 +251,38 @@ def run_DD2_model(adj, node_properties,
     """
 
     if model_params_dd2 is None:
-        from .import modelling
-        #TODO:  What to do if coord_names are also given in configdict and do not match coord_names?
-        config_dict["coord_names"]=coord_names
-        model_params_dd2 = modelling.conn_prob_2nd_order_model(adj, node_properties,**config_dict)
-        LOG.warning("Fit parameters are used directly but should be checked by hand if the proper fit is obtained!")
+        from connalysis.modelling import modelling
+
+        # TODO:  What to do if coord_names are also given in configdict and do not match coord_names?
+        config_dict["coord_names"] = coord_names
+        model_params_dd2 = modelling.conn_prob_2nd_order_model(adj, node_properties, **config_dict)
+        LOG.warning(
+            "Fit parameters are used directly but should be checked by hand if the proper fit is obtained!"
+        )
 
     LOG.info("Run DD2 model with parameters: \n%s", model_params_dd2)
 
     n = adj.shape[0]
-    a = model_params_dd2.mean(axis=0)['exp_model_scale']
-    b = model_params_dd2.mean(axis=0)['exp_model_exponent']
-    xyz = node_properties.loc[:,coord_names].to_numpy() #Make and assert that checks these columns exist!
-    if len(coord_names)<3: #Extend by zeros if lower dimensional data was used to compute distance
-        xyz=np.hstack([xyz,np.zeros((xyz.shape[0],3-xyz.shape[1]))])
-    C=gm.DD2(n,a,b,xyz,threads)
-    i=C['row']
-    j=C['col']
-    data=np.ones(len(i))
-    if return_params==True:
-        return sp.coo_matrix((data, (i, j)), [n,n]), model_params_dd2
+    a = model_params_dd2.mean(axis=0)["exp_model_scale"]
+    b = model_params_dd2.mean(axis=0)["exp_model_exponent"]
+    xyz = node_properties.loc[
+        :, coord_names
+    ].to_numpy()  # Make and assert that checks these columns exist!
+    if (
+        len(coord_names) < 3
+    ):  # Extend by zeros if lower dimensional data was used to compute distance
+        xyz = np.hstack([xyz, np.zeros((xyz.shape[0], 3 - xyz.shape[1]))])
+    C = _gm().DD2(n, a, b, xyz, threads)
+    i = C["row"]
+    j = C["col"]
+    data = np.ones(len(i))
+    if return_params:
+        return sp.coo_matrix((data, (i, j)), [n, n]), model_params_dd2
     else:
-        return sp.coo_matrix((data, (i, j)), [n,n])
+        return sp.coo_matrix((data, (i, j)), [n, n])
 
 
-def run_DD3(n,a1,b1,a2,b2,xyz,depths,threads=8, seed=(None,None)):
+def run_DD3(n, a1, b1, a2, b2, xyz, depths, threads=8, seed=(None, None)):
     r"""Creates a random digraph using the 2nd-order probability model.
 
     Parameters
@@ -299,14 +318,14 @@ def run_DD3(n,a1,b1,a2,b2,xyz,depths,threads=8, seed=(None,None)):
 
 
     """
-    if seed[0]==None or seed[1]==None:
-        adj = gm.DD3(n,a1,b1,a2,b2,xyz,depths,threads)
+    if seed[0] is None or seed[1] is None:
+        adj = _gm().DD3(n, a1, b1, a2, b2, xyz, depths, threads)
     else:
-        adj = gm.DD3(n,a1,b1,a2,b2,xyz,depths,threads,seed[0],seed[1])
-    return _dict_to_coo(adj,n)
+        adj = _gm().DD3(n, a1, b1, a2, b2, xyz, depths, threads, seed[0], seed[1])
+    return _dict_to_coo(adj, n)
 
 
-def run_DD2_block_pre(n, probs, blocks, xyz, threads=8, seed=(None,None)):
+def run_DD2_block_pre(n, probs, blocks, xyz, threads=8, seed=(None, None)):
     r"""Creates a random digraph using a combination of the stochastic block model
        and the 2nd order distance dependent model. Such that the probability of an edge
        is given by the distance dependent equation, but the parameters of that equation
@@ -353,14 +372,14 @@ def run_DD2_block_pre(n, probs, blocks, xyz, threads=8, seed=(None,None)):
 
     """
 
-    if seed[0]==None or seed[1]==None:
-        adj = gm.DD2_block_pre(n, probs, blocks, xyz, threads)
+    if seed[0] is None or seed[1] is None:
+        adj = _gm().DD2_block_pre(n, probs, blocks, xyz, threads)
     else:
-        adj = gm.DD2_block_pre(n, probs, blocks, xyz, threads, seed[0], seed[1])
-    return _dict_to_coo(adj,n)
+        adj = _gm().DD2_block_pre(n, probs, blocks, xyz, threads, seed[0], seed[1])
+    return _dict_to_coo(adj, n)
 
 
-def run_DD2_block(n, probs, blocks, xyz, threads, seed=(None,None)):
+def run_DD2_block(n, probs, blocks, xyz, threads, seed=(None, None)):
     r"""Creates a random digraph using a combination of the stochastic block model
        and the 2nd order distance dependent model. Such that the probability of an edge
        is given by the distance dependent equation, but the parameters of that equation
@@ -406,11 +425,11 @@ def run_DD2_block(n, probs, blocks, xyz, threads, seed=(None,None)):
         Similar function that only accounts for the block of the source vertex
 
     """
-    if seed[0]==None or seed[1]==None:
-        adj = gm.DD2_block(n, probs, blocks, xyz, threads)
+    if seed[0] is None or seed[1] is None:
+        adj = _gm().DD2_block(n, probs, blocks, xyz, threads)
     else:
-        adj = gm.DD2_block(n, probs, blocks, xyz, threads, seed[0], seed[1])
-    return _dict_to_coo(adj,n)
+        adj = _gm().DD2_block(n, probs, blocks, xyz, threads, seed[0], seed[1])
+    return _dict_to_coo(adj, n)
 
 
 #######################################################
@@ -421,7 +440,8 @@ def _seed_random_state(shuffler, seeder=np.random.seed):
 
     It is expected that the generator can be seeded calling `seeder(seed)`.
     """
-    def seed_and_run_method(adj, neuron_properties=[], seed=None, **kwargs):
+
+    def seed_and_run_method(adj, neuron_properties=[], seed=None, **kwargs):  # noqa: B006
         """Reinitialize numpy random state using the value of seed among `kwargs`.
         doing nothing if no `seed` provided --- expecting an external initialization.
         """
@@ -437,7 +457,7 @@ def _seed_random_state(shuffler, seeder=np.random.seed):
 
 ####### SHUFFLE #######################
 @_seed_random_state
-def ER_shuffle(adj, neuron_properties=[], shuffle_type="sparse"):
+def ER_shuffle(adj, neuron_properties=[], shuffle_type="sparse"):  # noqa: B006
     """Creates an Erdős Renyi digraph with exactly the same number of edges and weights
     as adj by shuffling the non-diagonla entries of adj.
 
@@ -472,8 +492,8 @@ def ER_shuffle(adj, neuron_properties=[], shuffle_type="sparse"):
 
         # Shuffle away from the diagonal
         np.random.shuffle(off_diagonal)
-        adj[np.triu_indices(N, k=1)] = off_diagonal[0:N * (N - 1) // 2]
-        adj[np.tril_indices(N, k=-1)] = off_diagonal[N * (N - 1) // 2:]
+        adj[np.triu_indices(N, k=1)] = off_diagonal[0 : N * (N - 1) // 2]
+        adj[np.tril_indices(N, k=-1)] = off_diagonal[N * (N - 1) // 2 :]
         # Return matrix
         return sp.coo_matrix(adj)
     elif shuffle_type == "sparse":
@@ -500,7 +520,7 @@ def ER_shuffle(adj, neuron_properties=[], shuffle_type="sparse"):
         return sp.coo_matrix((data, (rows, cols)), shape=(N, N))
 
 
-def configuration_model(M, seed = None):
+def configuration_model(M, seed=None):
     """Function to generate the configuration control model, obtained by
     shuffling the row and column of coo format independently, to create
     new coo matrix, then removing any multiple edges and loops.
@@ -525,16 +545,17 @@ def configuration_model(M, seed = None):
     :func:`~connalysis.randomization.randomization.run_DD2`
         Function which runs the 2nd distance dependent model
     """
-    adj=M.copy().tocoo()
+    adj = M.copy().tocoo()
     generator = np.random.default_rng(seed)
     R = adj.row
     C = adj.col
     generator.shuffle(R)
     generator.shuffle(C)
-    CM_matrix = sp.coo_matrix(([1]*len(R),(R,C)),shape=adj.shape).tocsr()
+    CM_matrix = sp.coo_matrix(([1] * len(R), (R, C)), shape=adj.shape).tocsr()
     CM_matrix.setdiag(0)
     CM_matrix.eliminate_zeros()
     return CM_matrix
+
 
 def adjusted_ER(adj, seed=None):
     """Function to generate an Erdos  Renyi model with adjusted bidirectional connections.
@@ -562,17 +583,24 @@ def adjusted_ER(adj, seed=None):
         Function which returns a digraph with shuffled reciprocal connections
     """
     from connalysis.network.topology import rc_submatrix
+
     from .rand_utils import adjust_bidirectional_connections
+
     generator = np.random.default_rng(seed)
     ER_matrix = ER_shuffle(adj, seed=seed).tocsc()
-    bedges_to_add = int(rc_submatrix(adj).count_nonzero() -rc_submatrix(ER_matrix).count_nonzero())//2
+    bedges_to_add = (
+        int(rc_submatrix(adj).count_nonzero() - rc_submatrix(ER_matrix).count_nonzero()) // 2
+    )
     if bedges_to_add >= 0:
         return adjust_bidirectional_connections(ER_matrix, bedges_to_add, generator)
     else:
-        LOG.info("Erdos-Renyi control has more reciprocal connections than original, so they are not adjusted.")
+        LOG.info(
+            "Erdos-Renyi control has more reciprocal connections than original, so they are not adjusted."
+        )
         return ER_matrix
 
-def underlying_model(adj, seed: int=None):
+
+def underlying_model(adj, seed: int = None):
     """Function to generate a digraph with the same  underlying undirected graph as adj
         and the same number of reciprocal connections
 
@@ -597,13 +625,16 @@ def underlying_model(adj, seed: int=None):
         Function which returns a digraph with shuffled reciprocal connections
     """
     from connalysis.network.topology import rc_submatrix
-    from .rand_utils import  add_bidirectional_connections
+
+    from .rand_utils import add_bidirectional_connections
+
     generator = np.random.default_rng(seed)
     target_bedges = int(rc_submatrix(adj).count_nonzero() / 2)
     ut_matrix = sp.triu(adj + adj.T)
     return add_bidirectional_connections(ut_matrix, target_bedges, generator)
 
-def bishuffled_model(adj, seed = None):
+
+def bishuffled_model(adj, seed=None):
     """Function to generate a digraph with shuffled reciprocal connections
 
     Parameters
@@ -628,17 +659,22 @@ def bishuffled_model(adj, seed = None):
     and same number of reciprocal connections
     """
     from connalysis.network.topology import rc_submatrix
-    from .rand_utils import  add_bidirectional_connections, half_matrix
+
+    from .rand_utils import add_bidirectional_connections, half_matrix
+
     generator = np.random.default_rng(seed)
     ut_bedges = sp.triu(rc_submatrix(adj))
     target_bedges = ut_bedges.count_nonzero()
     bedges1, bedges2 = half_matrix(ut_bedges, generator)
     return add_bidirectional_connections(adj - bedges1 - bedges2.T, target_bedges, generator)
 
+
 #######################################################
 ################ GRAPH MODIFICATIONS  #################
 #######################################################
-def add_rc_connections_skeleta(adj,factors,dimensions=None, skeleta=None, threads=8, seed=0, return_skeleta=False):
+def add_rc_connections_skeleta(
+    adj, factors, dimensions=None, skeleta=None, threads=8, seed=0, return_skeleta=False
+):
     """Function to add reciprocal connections at random to adj on the skeleta of maximal simplices of adj
 
     Parameters
@@ -667,39 +703,52 @@ def add_rc_connections_skeleta(adj,factors,dimensions=None, skeleta=None, thread
         If return_skeleta=True it also returns the skeleta of maximal simplices of adj in the dimensions selected
 
     """
-    adj=adj.tocsr()
+    adj = adj.tocsr()
     from connalysis.network.topology import rc_submatrix
+
     from .rand_utils import add_bidirectional_connections
+
     # Compute skeleton graphs if not precomputed
     if skeleta is None:
         from connalysis.network.topology import get_k_skeleta_graph
-        max_simplices=True # Add option for all simplices?
-        skeleta=get_k_skeleta_graph(adj, max_simplices=max_simplices, dimensions=dimensions, threads=threads)
+
+        max_simplices = True  # Add option for all simplices?
+        skeleta = get_k_skeleta_graph(
+            adj, max_simplices=max_simplices, dimensions=dimensions, threads=threads
+        )
     # Restrict to dimensions that contain simplices
     if dimensions is None:
         dimensions = np.array([int(key[10:]) for key in skeleta.keys()])
     else:
         dimensions = np.intersect1d(np.array([int(key[10:]) for key in skeleta.keys()]), dimensions)
     # Generate mapping between factors and dimensions or check the one provided
-    if isinstance(factors,int):
-        factors={dim:factors for dim in dimensions}
+    if isinstance(factors, int):
+        factors = {dim: factors for dim in dimensions}
     else:
         assert isinstance(factors, dict), "factors must be int or dictionary"
-        assert np.isin(dimensions, np.array(list(factors.keys()))).all(), "all dimensions must be a key in factors"
+        assert np.isin(dimensions, np.array(list(factors.keys()))).all(), (
+            "all dimensions must be a key in factors"
+        )
 
     # Add bidirectional connections
-    generator=np.random.default_rng(seed)
-    rc_add={dim:((factors[dim]-1)*(rc_submatrix(skeleta[f'dimension_{dim}']).sum()))//2 for dim in dimensions}
-    print("Number of reciprocal connections added per dimension"); print(rc_add) # Remove or add verbose option
-    M=adj.copy()
+    generator = np.random.default_rng(seed)
+    rc_add = {
+        dim: ((factors[dim] - 1) * (rc_submatrix(skeleta[f"dimension_{dim}"]).sum())) // 2
+        for dim in dimensions
+    }
+    LOG.info("Number of reciprocal connections added per dimension: %s", rc_add)
+    M = adj.copy()
     for dim in dimensions:
-        M+=add_bidirectional_connections(skeleta[f'dimension_{dim}'], rc_add[dim], generator).astype(bool)
+        M += add_bidirectional_connections(
+            skeleta[f"dimension_{dim}"], rc_add[dim], generator
+        ).astype(bool)
     if return_skeleta:
         return M, skeleta
     else:
         return M
 
-def add_rc_connections(adj,n_rc, seed=0):
+
+def add_rc_connections(adj, n_rc, seed=0):
     """Function to turn a fixed amount of unidirectional connections of adj into reciprocal connections.
 
     Parameters
@@ -717,11 +766,13 @@ def add_rc_connections(adj,n_rc, seed=0):
     """
     # TODO: Move this function from utils and change dependencies
     from .rand_utils import add_bidirectional_connections
+
     # Add bidirectional connections
-    generator=np.random.default_rng(seed)
+    generator = np.random.default_rng(seed)
     return add_bidirectional_connections(adj, n_rc, generator).astype(bool)
 
-def add_connections(adj,nc, seed=0,sparse_mode=True, max_iter=30):
+
+def add_connections(adj, nc, seed=0, sparse_mode=True, max_iter=30):
     """Function add connections at random
 
     Parameters
@@ -740,53 +791,71 @@ def add_connections(adj,nc, seed=0,sparse_mode=True, max_iter=30):
     bool matrix
         Digraph with nc more edges than adj
     """
-    adj=adj.astype(bool)
+    adj = adj.astype(bool)
     # Add bidirectional connections
     if sparse_mode:
         # TODO: Search for more efficient way to do this
-        N=adj.shape[0]; E=adj.sum(); k=0 # Number nodes, target edges and iteration counter
-        while adj.sum()< E +nc: #target number of edges
-            if k>max_iter:
-                print("More than max_it iterations tried, increase number of iterations or try sparse_mode =False")
+        N = adj.shape[0]
+        E = adj.sum()
+        k = 0  # Number nodes, target edges and iteration counter
+        while adj.sum() < E + nc:  # target number of edges
+            if k > max_iter:
+                LOG.warning(
+                    "More than max_it iterations tried, increase number of iterations or try sparse_mode =False"
+                )
                 break
-            den=(E+nc-adj.sum())/(N*N) #density of matrix added
+            den = (E + nc - adj.sum()) / (N * N)  # density of matrix added
             generator = np.random.default_rng(seed)
-            A=sp.random(*adj.shape, density=den, format='csr', dtype = 'bool', random_state = generator)
+            A = sp.random(
+                *adj.shape, density=den, format="csr", dtype="bool", random_state=generator
+            )
             A.setdiag(0)
-            adj=adj+A; k+=1
+            adj = adj + A
+            k += 1
         adj.eliminate_zeros()
     else:
-        if sp.issparse(adj): adj=adj.toarray()
-        ul_ind = np.where(np.eye(*adj.shape) == 0) # non-diagonal indices
-        zero_ind=np.where(adj[ul_ind]==0)
+        if sp.issparse(adj):
+            adj = adj.toarray()
+        ul_ind = np.where(np.eye(*adj.shape) == 0)  # non-diagonal indices
+        zero_ind = np.where(adj[ul_ind] == 0)
         generator = np.random.default_rng(seed)
-        selection=zero_ind[0][generator.choice(zero_ind[0].shape[0], replace=False, size=nc)]
-        adj[(ul_ind[0][selection],ul_ind[1][selection])]=1
+        selection = zero_ind[0][generator.choice(zero_ind[0].shape[0], replace=False, size=nc)]
+        adj[(ul_ind[0][selection], ul_ind[1][selection])] = 1
     return adj
 
 
-def random_geometric_model(pts, pts_x=None, n_neighbors=None, dist_neighbors=None, n_pick=None,
-                            p_pick=None, scale_axes=None,
-                            directionality_fac=0.0, directionality_axis=None,
-                            distance_func=None,
-                            custom_w_out=None, custom_w_in=None,
-                            no_diag=True, mirror=False):
+def random_geometric_model(
+    pts,
+    pts_x=None,
+    n_neighbors=None,
+    dist_neighbors=None,
+    n_pick=None,
+    p_pick=None,
+    scale_axes=None,
+    directionality_fac=0.0,
+    directionality_axis=None,
+    distance_func=None,
+    custom_w_out=None,
+    custom_w_in=None,
+    no_diag=True,
+    mirror=False,
+):
     """
     Generates a directed random geometric graph with optional modifications.
 
     Nodes are given by embedded points in R^m with positions given by `pts`. Directed edges are
     created probabilistically through two successive filtering stages:
-    
+
     1. **Candidate selection**: For each node, select candidate neighbors either by:
-    
+
        a. Choosing the `n_neighbors` nearest neighbors in R^m, or
        b. Choosing all nodes within distance `dist_neighbors`.
-    
+
     2. **Sub-selection**: From the candidates, draw the final neighbors either by:
-    
+
        a. Sampling `n_pick` nodes uniformly at random, or
        b. Retaining each candidate independently with probability `p_pick`.
-    
+
     The sub-selection step is optional, and can moreover be biased to give
     asymmetric connectivity via `directionality_fac` and `directionality_axis`,
     or via a custom `distance_func`.
@@ -798,20 +867,20 @@ def random_geometric_model(pts, pts_x=None, n_neighbors=None, dist_neighbors=Non
         vertices that the random geometric graph is to be constructed on.
     pts_x : numpy.array
         Optional input for a second set of vertex locations. If provided, edges from `pts` to `pts_x` will
-        be placed according to the random geometric rules. That is, a random geometric graph on the 
+        be placed according to the random geometric rules. That is, a random geometric graph on the
         concatenation of `pts` and `pts_x` is constructed, but only the entries in the top right part of the
         adjacency matrix are kept and the rest set to 0.
     n_neighbors : int
-        One way of specifying the potential set of partners for each node. If specified, the `n_neighbors` 
+        One way of specifying the potential set of partners for each node. If specified, the `n_neighbors`
         nearest neighbors of a node are potential partners for outgoing connections to be placed.
     dist_neighbors : float
         The other way to specify the potential set of partners. If specified, all vertices within that distance
-        of a node are potential partners for outgoing connections to be placed. 
+        of a node are potential partners for outgoing connections to be placed.
         Either `n_neighbors` or `dist_neighbors` must be used. If both or neither are used, an Exception is raised.
     n_pick : int
-        One way of specifying the actual number of vertices that are connected from each node. If specified, 
+        One way of specifying the actual number of vertices that are connected from each node. If specified,
         `n_pick` vertices from the candidates (see above) are randomly picked and outgoing connections placed
-        to all of them. If the number of candidates for a vertex is smaller than `n_pick`, then simply all 
+        to all of them. If the number of candidates for a vertex is smaller than `n_pick`, then simply all
         candidates will be picked and no warning or exception raised.
     p_pick : float
         The other way to specify the actual number of vertices that are connected from each node. If specified,
@@ -819,15 +888,15 @@ def random_geometric_model(pts, pts_x=None, n_neighbors=None, dist_neighbors=Non
         placed between them.
         Either `n_pick` or `p_pick` must be used. If both or neither are used, and Exception is raised.
     scale_axes : numpy.array
-        Shape: (m, ), where m is the number of dimensions. One way of biasing which pairs are connected. 
+        Shape: (m, ), where m is the number of dimensions. One way of biasing which pairs are connected.
         If used, distances along each dimension are scaled by the corresponding factor in `scale_axes` before
         candidates for connection are picked, i.e., before `n_neighbors` or `dist_neighbors` is evaluated.
     directionality_axis : numpy.array
         Shape: (m, ), where m is the number of dimensions. Another way of biasing which pairs are connected.
         This introduces a directionality bias, i.e., connections are more likely if their direction aligns with
         a specified vector and less likely if their direction is in the opposite direction of the vector. This
-        is calculated as the dot product of the direction vector of the potential connection with 
-        `directionality_axis`. 
+        is calculated as the dot product of the direction vector of the potential connection with
+        `directionality_axis`.
         This is evaluated _after_ candidates have been picked and only affects the selection of actual connections
         from the candidates (see `n_neighbors` / `dist_neighbors` and `n_pick` / `p_pick`) above.
     directionality_fac : float
@@ -835,18 +904,18 @@ def random_geometric_model(pts, pts_x=None, n_neighbors=None, dist_neighbors=Non
         (see above) is weighed to calculate a bias. Formally:
         w = (delta o directionality_axis) * directionality_fac + 1,
         where o denotes the vector dot product, delta is the vector from the source to the target vertex of a
-        potential connection. 
+        potential connection.
         Note that these are relative weights that are scaled to fulfill the constraints
         on the number of connections to pick given by `n_pick` or `p_pick`.
-        Note that this does NOT affect the selection of candidates, parameterized by `n_neighbors` or 
+        Note that this does NOT affect the selection of candidates, parameterized by `n_neighbors` or
         `dist_neighbors`, but only the selection from the candidates.
         Directionality bias cannot be combined with distance bias (see below).
     distance_func : function
-        A function that is to be evaluated on pairwise distances of candidate pairs. Another way of biasing 
-        which pairs are connected. The function takes a distance as input and returns a relative weight. 
+        A function that is to be evaluated on pairwise distances of candidate pairs. Another way of biasing
+        which pairs are connected. The function takes a distance as input and returns a relative weight.
         Note that these are relative weights that are scaled to fulfill the constraints on the number of
-        connections to pick given by `n_pick` or `p_pick`. 
-        Note that this does NOT affect the selection of candidates, parameterized by `n_neighbors` or 
+        connections to pick given by `n_pick` or `p_pick`.
+        Note that this does NOT affect the selection of candidates, parameterized by `n_neighbors` or
         `dist_neighbors`, but only the selection from the candidates.
         Cannot be combined with a directionality bias (see above).
     custom_w_out : numpy.array
@@ -856,7 +925,7 @@ def random_geometric_model(pts, pts_x=None, n_neighbors=None, dist_neighbors=Non
         connection from candidates. Simply, for all potential outgoing connections from vertex i, entry
         custom_w_out[i] is used as a relative weight that is multiplied with any other potential weight.
         Similarly for custom_w_in[i] for potential incoming connections.
-        Note that this does NOT affect the selection of candidates, parameterized by `n_neighbors` or 
+        Note that this does NOT affect the selection of candidates, parameterized by `n_neighbors` or
         `dist_neighbors`, but only the selection from the candidates.
     no_diag : bool
         If set to False, connections from a vertex to itself are allowed to be placed.
@@ -864,12 +933,12 @@ def random_geometric_model(pts, pts_x=None, n_neighbors=None, dist_neighbors=Non
         If set to True, the output matrix is made symmetrical with the following strategy: If a connection
         from vertex i to j exists, a connection is also placed from j to i if it does not already exist.
         This is ignored without warning if `pts_x` is specified.
-    
+
     Returns
     ----------
     sparse.csc_matrix
         The adjacency matrix of an instance of a random geometric graph model.
-    
+
     Raises
     ----------
     ValueError
@@ -914,55 +983,66 @@ def random_geometric_model(pts, pts_x=None, n_neighbors=None, dist_neighbors=Non
         pts = pts / np.array(scale_axes).reshape((1, -1))
         pts_x = pts_x / np.array(scale_axes).reshape((1, -1))
     shape = (len(pts_x), len(pts))
-    
+
     # Generate candidates for connections based on number or max. distance
     kd = KDTree(pts)
-    if n_neighbors is not None: # Case 1: number of neighbor candidates given
+    if n_neighbors is not None:  # Case 1: number of neighbor candidates given
         if no_diag:
             _, idx = kd.query(pts_x, np.arange(2, 2 + n_neighbors))  # len(idx_x) x n_neighbors
         else:
             _, idx = kd.query(pts_x, np.arange(1, 1 + n_neighbors))  # len(idx_x) x n_neighbors
-    elif dist_neighbors is not None: # Case 2: max. distance for neighbor candidates given
+    elif dist_neighbors is not None:  # Case 2: max. distance for neighbor candidates given
         idx = list(kd.query_ball_point(pts_x, dist_neighbors))
         if no_diag:
-            idx = [np.setdiff1d(_idx, _i) for _i, _idx in enumerate(idx)]  # This is slow. Filter after the fact?
-    
+            idx = [
+                np.setdiff1d(_idx, _i) for _i, _idx in enumerate(idx)
+            ]  # This is slow. Filter after the fact?
+
     # Pick from candidates. Step 1: Calculate bias weights (if any)
     # Step 1a: Weights based on distance or direction.
-    w = direction_or_distance_dependent_w(pts_x, pts, idx, distance_func=distance_func,
-                                           directionality_axis=directionality_axis,
-                                           directionality_fac=directionality_fac)
+    w = direction_or_distance_dependent_w(
+        pts_x,
+        pts,
+        idx,
+        distance_func=distance_func,
+        directionality_axis=directionality_axis,
+        directionality_fac=directionality_fac,
+    )
     # Step 1b: Weights based on per-node biases (in- or out-degree)
     if custom_w_in is not None and custom_w_out is not None:
         cust_w = evaluate_per_node_weights(custom_w_out, custom_w_in, idx)
         cust_w = cust_w / cust_w.mean()
         w = w * cust_w
-    
+
     # Step 2: Actually pick connections based on constraints (n_pick, p_pick) and weights.
     if p_pick is not None:
         wmean = w.mean()
         picker_func = lambda _x: _x.loc[np.random.rand(len(_x)) < (p_pick * _x / wmean)]
     elif n_pick is not None:
-        picker_func = lambda _x: _x.iloc[np.random.choice(len(_x), np.minimum(n_pick, len(_x)),
-                                                             replace=False,
-                                                             p=_x / _x.sum())]
+        picker_func = lambda _x: _x.iloc[
+            np.random.choice(len(_x), np.minimum(n_pick, len(_x)), replace=False, p=_x / _x.sum())
+        ]
     w = w.groupby("neuron").apply(picker_func)
 
     # Assemble output into sparse matrix.
-    if len(w) > 0: # If any connection exists.
+    if len(w) > 0:  # If any connection exists.
         w = w.droplevel(0)
         return connection_df_to_csc_matrix(w, mirror=mirror, shape=shape)
     # Fallback: Return empty matrix.
     return sp.csc_matrix((len(pts), len(pts)), dtype=bool)
 
 
-def stochastic_spread_model(M, n_steps=100,
-                            n_protected=0, q=10.0, 
-                            tgt_level="individual",
-                            decay=1.0,
-                            sum_exclusion=True,
-                            return_history=False,
-                            node_can_spread=None):
+def stochastic_spread_model(
+    M,
+    n_steps=100,
+    n_protected=0,
+    q=10.0,
+    tgt_level="individual",
+    decay=1.0,
+    sum_exclusion=True,
+    return_history=False,
+    node_can_spread=None,
+):
     """
     Builds a stochastic spread graph. See https://doi.org/10.1101/2025.08.21.671478
 
@@ -976,17 +1056,17 @@ def stochastic_spread_model(M, n_steps=100,
         Maximum number of steps to evaluate. Should be picked `large enough` that the spreading process
         terminates naturally from lack of new nodes instead of reaching this maximum.
     n_protected : int
-        Number of initial steps to take with reduced stochasticity. For this number of steps the process 
+        Number of initial steps to take with reduced stochasticity. For this number of steps the process
         for a given source node will spread to exactly the expected number of nodes instead of a randomly
         determined number. This avoids a large number of source nodes with zero out-degree. Set to 0 to
         not use this feature.
-    q : float 
+    q : float
         Sets the expected number of nodes to spread to in each step. This is done by scaling the weights in
         M with weights dynamically determined in each step. If the data type of M is boolean, all entries
         in M are interpreted as 1.0 and q must be provided to determine "proper" weights.
         Set to None to not use this feature.
     tgt_level : str
-        One of "mean" or "individual". Specifies how parameter q is interpreted. If "individual", then one 
+        One of "mean" or "individual". Specifies how parameter q is interpreted. If "individual", then one
         scaling factor per source node is calculated. If "mean", then one global factor is used. If q is
         set to None, then this is ignored. Using "mean" leads to more diverse degree distributions.
     decay : float
@@ -994,16 +1074,16 @@ def stochastic_spread_model(M, n_steps=100,
         This leads to shorter degree distributions.
     sum_exclusion : bool
         Determines how the node exclusion rule is updated. If True, then once a candidate node has been
-        rejected once from spread it can not be spread to in future steps. If False, then it is only 
+        rejected once from spread it can not be spread to in future steps. If False, then it is only
         excluded in the next step.
     return_history : bool
         If True, then a second output is returned (see below).
     node_can_spread : iterable
         Individual elements must be bool. If provided, it specifies which nodes "grow" outgoing connections
-        via the spreading mechanism. That is, for nodes where the corresponding entry of `node_can_spread` is 
+        via the spreading mechanism. That is, for nodes where the corresponding entry of `node_can_spread` is
         False, the out-degree will be set to 0. If provided, the length of the iterable must match the first
         dimension of `M`. If not provided, all nodes will spread.
-    
+
     Returns
     ----------
     full_instance : sparse.matrix
@@ -1012,7 +1092,7 @@ def stochastic_spread_model(M, n_steps=100,
         Optional output only returned if `return_history` is True. List specifying for each evaluated
         step the mean number of nodes that the process spread to. To be used to improve parameter fitting or
         for debugging.
-    
+
     Raises
     ----------
     ValueError
@@ -1032,27 +1112,27 @@ def stochastic_spread_model(M, n_steps=100,
             raise ValueError("Weights in input matrix must be <= 1.0!")
     else:
         if q is None:
-            raise ValueError("If q is set to None, then M must specify probabilities (float between 0 and 1)!")
+            raise ValueError(
+                "If q is set to None, then M must specify probabilities (float between 0 and 1)!"
+            )
     if tgt_level not in ["mean", "individual"]:
-        raise ValueError(f"Unknown value for tgt_level: {tgt_level}. Expected one of ['mean', 'individual']!")
+        raise ValueError(
+            f"Unknown value for tgt_level: {tgt_level}. Expected one of ['mean', 'individual']!"
+        )
     if (decay < 0) or (decay > 1.0):
         raise ValueError("Parameter decay must be between 0 and 1!")
     sum_exclusion = bool(sum_exclusion)
 
     # Setting up the initial
     exclusion = sp.coo_matrix(([], ([], [])), shape=M.shape)
-    initial = sp.diags(
-        diagonals=np.ones(M.shape[0]),
-        offsets=0, shape=M.shape, format="csr"
-    )
+    initial = sp.diags(diagonals=np.ones(M.shape[0]), offsets=0, shape=M.shape, format="csr")
     if node_can_spread is None:
         state = initial
     else:
         if len(node_can_spread) != M.shape[0]:
             raise ValueError("Length of node_can_spread must match first dimension of M!")
         state = sp.diags(
-            diagonals=np.array(node_can_spread, dtype=int),
-            offsets=0, shape=M.shape, format="csr"
+            diagonals=np.array(node_can_spread, dtype=int), offsets=0, shape=M.shape, format="csr"
         )
     M = M.transpose()
 
@@ -1061,11 +1141,11 @@ def stochastic_spread_model(M, n_steps=100,
     col = []
     data = []
     history = []
-    
+
     # Main loop
     for _step in range(n_steps):
         # Where the process can spread to. Subtracting exclusion ensures values < 0
-        candidates = state * M - 1E6 * (exclusion + initial)
+        candidates = state * M - 1e6 * (exclusion + initial)
         candidates.data = np.minimum(np.maximum(candidates.data, 0), 1.0)
 
         # Scaling of spread probabilities based on configuration
@@ -1074,11 +1154,11 @@ def stochastic_spread_model(M, n_steps=100,
                 csum = np.array(candidates.sum(axis=1))[:, 0]
                 fac = q * np.ones(M.shape[0]) / csum[csum > 0].mean()
             else:
-                fac = q / np.array(candidates.sum(axis=1) + 1E-3)[:, 0]
+                fac = q / np.array(candidates.sum(axis=1) + 1e-3)[:, 0]
             q = q * decay
         else:
             fac = None
-            
+
         # Take a new step
         new_state = evaluate_probs(candidates, adjust=fac, less_random=(_step < n_protected))
         row.extend(new_state.row)
@@ -1098,10 +1178,9 @@ def stochastic_spread_model(M, n_steps=100,
         state = new_state
 
     # Create output matrix
-    full_instance = sp.coo_matrix((
-        np.ones(len(row), dtype=bool),
-        (row, col)
-    ), shape=M.shape).tocsr()
+    full_instance = sp.coo_matrix(
+        (np.ones(len(row), dtype=bool), (row, col)), shape=M.shape
+    ).tocsr()
 
     if return_history:
         return full_instance, history

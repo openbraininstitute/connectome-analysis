@@ -1,105 +1,107 @@
-[tool.poetry]
-name = "connectome_analysis"
-description = "Methods for network analysis of graphs coming from brain models and activity on them"
-authors = [
-    "Daniela Egas Santander <daniela.egas.math@gmail.com>",
-    "Christoph Pokorny <christoph.pokorny@openbraininstitute.org>",
-    "Jason Smith <jason.smith@ntu.ac.uk>",
-    "Michael Wolfgang Reimann <mwr@reimann.science>"]
-license = "AGPL-3.0-or-later"
-readme = "README.md"
-
-documentation = "https://connectome-analysis.readthedocs.io/"
-homepage = "https://connectome-analysis.readthedocs.io/"
-repository = "https://github.com/openbraininstitute/connectome-analysis.git"
-
-classifiers = [
-  "Development Status :: 4 - Beta",
-  "Intended Audience :: Developers",
-  "Operating System :: OS Independent",
-  "Programming Language :: Python",
-  "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
-  "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13",
-  "Programming Language :: Python :: 3.14",
-  "Topic :: Software Development :: Libraries :: Python Modules",
-  "Typing :: Typed",
-]
-
-packages = [
-    { include = "connalysis", from = "src" },
-]
-
-# Placeholder; the real version is derived from the git tag at build time
-# by poetry-dynamic-versioning. Keep this key at the bottom of [tool.poetry].
-version = "0.0.0"
-
-[tool.poetry.requires-plugins]
-poetry-dynamic-versioning = { version = ">=1.0.0,<2.0.0", extras = ["plugin"] }
-
-[tool.poetry-dynamic-versioning]
-enable = true
-vcs = "git"
-style = "pep440"
-
-[tool.poetry.dependencies]
-python = ">=3.10"
-numpy = "*"
-pandas = "*"
-scipy = [
-  { version = ">=1.15", python = ">=3.10,<3.14" },
-  { version = ">=1.16.1", python = ">=3.14" }
-]
-matplotlib = "*"
-tqdm="*"
-flagserpy ="*"
-bigrandomgraphs = ">=0.1.1"
-pyflagsercount = ">=0.5.0"
-networkx="*"
-scikit-network = "*"
-tables = [
-  { version = ">=3.10.1,<3.11", python = ">=3.10,<3.11" },
-  { version = ">=3.10.1", python = ">=3.11,<3.14" },
-  { version = ">=3.11", python = ">=3.14" }
-]
-
-[tool.poetry.group.dev.dependencies]
-black = "*"
-sphinx = {version = ">=8.2,<10", python = ">=3.11"}
-obi-sphinx-theme = {version = ">=2.0.0", python = ">=3.11"}
-myst-parser = {version = "4.0.1", python = ">=3.11"}
-pytest = "*"
-pytest-github-actions-annotate-failures = "*"
-pytest-cov = "*"
-jupyter = "^1.0.0"
-seaborn = "*"
-urllib3 = ">=2.7.0"
-
 [build-system]
-requires = ["poetry-core>=1.2.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0", "setuptools"]
-build-backend = "poetry_dynamic_versioning.backend"
+requires = ["setuptools>=77", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
 
-[tool.isort]
-profile = "black"
-src_paths = ["src", "tests"]
+[project]
+name = "connectome-analysis"
+dynamic = ["version"]
+description = "Methods for network analysis of graphs coming from brain models and activity on them"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENCE"]
+authors = [
+    { name = "Daniela Egas Santander", email = "daniela.egas.math@gmail.com" },
+    { name = "Christoph Pokorny", email = "christoph.pokorny@openbraininstitute.org" },
+    { name = "Jason Smith", email = "jason.smith@ntu.ac.uk" },
+    { name = "Michael Wolfgang Reimann", email = "mwr@reimann.science" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.11",
+    "pandas>=2.1",
+    "networkx>=3.0",
+    "tqdm>=4.60",
+    "flagserpy>=0.1.0",
+    "pyflagsercount>=0.5.0",
+    "bigrandomgraphs>=0.1.1",
+]
 
-[tool.black]
-target-version = ["py310", "py311", "py312", "py313", "py314"]
-include = '\.pyi?$'
+[project.optional-dependencies]
+plot = ["matplotlib>=3.8"]  # figures written by the model building functions
+io = ["tables>=3.10.1", "pyarrow>=14"]  # reading .h5 / .feather neuron tables
+all = ["connectome-analysis[plot,io]"]
+
+[project.urls]
+Documentation = "https://connectome-analysis.readthedocs.io/"
+Homepage = "https://connectome-analysis.readthedocs.io/"
+Repository = "https://github.com/openbraininstitute/connectome-analysis"
+
+[dependency-groups]
+test = [
+    "connectome-analysis[all]",
+    "pytest>=8",
+    "pytest-cov>=5",
+    "pytest-github-actions-annotate-failures>=0.2",
+]
+lint = ["ruff"]
+docs = [
+    "sphinx>=8.2,<10; python_version >= '3.11'",
+    "obi-sphinx-theme>=2.0.0; python_version >= '3.11'",
+    "myst-parser>=4; python_version >= '3.11'",
+]
+tutorials = ["connectome-analysis[all]", "jupyter", "seaborn"]
+dev = [{ include-group = "test" }, { include-group = "lint" }, { include-group = "docs" }]
+
+[tool.setuptools_scm]
+local_scheme = "no-local-version"
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.pytest.ini_options]
-addopts = """\
-    --cov template \
-    --cov tests \
-    --cov-report term-missing \
-    --no-cov-on-fail \
-"""
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["tests"]
+addopts = ["--import-mode=importlib", "-ra", "--strict-markers"]
+
+[tool.coverage.run]
+source = ["connalysis"]
 
 [tool.coverage.report]
-fail_under = 100
-exclude_lines = [
-    'if TYPE_CHECKING:',
-    'pragma: no cover'
+show_missing = true
+exclude_lines = ["if TYPE_CHECKING:", "pragma: no cover"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["tutorials", "data_analysis"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+    "E501",  # long lines: the docstrings are long, the formatter wraps the code
+    "E731",  # assigning a lambda
+    "B905",  # zip(strict=...)
+    "UP030", "UP031", "UP032",  # str.format and % formatting in the messages
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B", "E741", "UP"]
+"**/__init__.py" = ["F401"]  # re-exports
+
+[tool.ruff.format]
+quote-style = "double"
