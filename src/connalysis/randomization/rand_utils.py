@@ -2,11 +2,11 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-import numpy as np
-import scipy.sparse as sp
-import pandas as pd
 
-from typing import List, Union
+import numpy as np
+import pandas as pd
+import scipy.sparse as sp
+
 from connalysis.network.topology import rc_submatrix
 
 
@@ -22,11 +22,15 @@ def subset_matrix(sparse_matrix: sp.coo_matrix, selection: np.ndarray) -> sp.coo
     :return subset_matrix: Matrix containing edges specified by selection.
     :rtype: sp.coo_matrix
     """
-    return sp.coo_matrix((np.ones(len(selection)), (sparse_matrix.row[selection], sparse_matrix.col[selection])),
-                         shape=(sparse_matrix.shape))
+    return sp.coo_matrix(
+        (np.ones(len(selection)), (sparse_matrix.row[selection], sparse_matrix.col[selection])),
+        shape=(sparse_matrix.shape),
+    )
 
 
-def subsampled_matrix(sparse_matrix: sp.coo_matrix, n: int, generator: np.random.Generator) -> sp.coo_matrix:
+def subsampled_matrix(
+    sparse_matrix: sp.coo_matrix, n: int, generator: np.random.Generator
+) -> sp.coo_matrix:
     """
     Returns a random subsample of the matrix of a given size.
 
@@ -44,8 +48,9 @@ def subsampled_matrix(sparse_matrix: sp.coo_matrix, n: int, generator: np.random
     return subset_matrix(sparse_matrix, selection)
 
 
-def non_overlapping_subsampled_matrices(sparse_matrix: sp.coo_matrix, ns: List[int],
-                                        generator: np.random.Generator) -> List[sp.coo_matrix]:
+def non_overlapping_subsampled_matrices(
+    sparse_matrix: sp.coo_matrix, ns: list[int], generator: np.random.Generator
+) -> list[sp.coo_matrix]:
     """Function to retrieve an arbitrary amount of non-overlapping subsampled matrices of given edge count.
 
     :param sparse_matrix: Sparse input matrix in coo format.
@@ -58,12 +63,16 @@ def non_overlapping_subsampled_matrices(sparse_matrix: sp.coo_matrix, ns: List[i
     :return subsample_matrices: Matrices containing ns edges.
     :rtype: List[sp.coo_matrix]
     """
-    selection = generator.choice(len(sparse_matrix.col), replace=False, size=sum(ns))  # Samples some edges
+    selection = generator.choice(
+        len(sparse_matrix.col), replace=False, size=sum(ns)
+    )  # Samples some edges
     ls = np.append(0, np.cumsum(ns))
-    return [subset_matrix(sparse_matrix, selection[ls[i]:ls[i + 1]]) for i in range(len(ls) - 1)]
+    return [subset_matrix(sparse_matrix, selection[ls[i] : ls[i + 1]]) for i in range(len(ls) - 1)]
 
 
-def half_matrix(sparse_matrix: sp.coo_matrix, generator: np.random.Generator) -> List[sp.coo_matrix]:
+def half_matrix(
+    sparse_matrix: sp.coo_matrix, generator: np.random.Generator
+) -> list[sp.coo_matrix]:
     """
     Split the matrix edges exactly in half. Returns one matrix per half.
 
@@ -76,13 +85,14 @@ def half_matrix(sparse_matrix: sp.coo_matrix, generator: np.random.Generator) ->
     :rtype: List[sp.coo_matrix]
     """
     permutation = generator.permutation(len(sparse_matrix.col))
-    return subset_matrix(sparse_matrix, permutation[:int(len(permutation) / 2)]), subset_matrix(sparse_matrix,
-                                                                                                permutation[int(len(
-                                                                                                    permutation) / 2):])
+    return subset_matrix(sparse_matrix, permutation[: int(len(permutation) / 2)]), subset_matrix(
+        sparse_matrix, permutation[int(len(permutation) / 2) :]
+    )
 
 
-def adjust_bidirectional_connections(sparse_matrix: sp.csc_matrix, bedges_to_add: int,
-                                     generator: np.random.Generator) -> sp.csc_matrix:
+def adjust_bidirectional_connections(
+    sparse_matrix: sp.csc_matrix, bedges_to_add: int, generator: np.random.Generator
+) -> sp.csc_matrix:
     """
     Turn a fixed amount of directional connections into bidirectional connections.
 
@@ -100,14 +110,15 @@ def adjust_bidirectional_connections(sparse_matrix: sp.csc_matrix, bedges_to_add
     dedge = sparse_matrix - bedge
     del bedge
     dedge_coo = dedge.tocoo(copy=False)  # Easier to subsample
-    dedges_to_bedge, dedges_to_remove = non_overlapping_subsampled_matrices(dedge_coo,
-                                                                            [bedges_to_add, bedges_to_add],
-                                                                            generator)  # Coo matrices are auto casted before sum
+    dedges_to_bedge, dedges_to_remove = non_overlapping_subsampled_matrices(
+        dedge_coo, [bedges_to_add, bedges_to_add], generator
+    )  # Coo matrices are auto casted before sum
     return sparse_matrix + dedges_to_bedge.T - dedges_to_remove
 
 
-def add_bidirectional_connections(sparse_matrix: sp.csc_matrix, bedges_to_add: int,
-                                  generator: np.random.Generator) -> sp.csc_matrix:
+def add_bidirectional_connections(
+    sparse_matrix: sp.csc_matrix, bedges_to_add: int, generator: np.random.Generator
+) -> sp.csc_matrix:
     """
     Turn a fixed amount of directional connections into bidirectional connections.
 
@@ -148,11 +159,11 @@ def evaluate_probs_less_random(p_mat, adjust=None):
     adjust : numpy.array
         Optional array of weight vectors. Scales the values of p_mat of the corresponding rows. In the manuscript
         (see above) this is 1 / r.
-    
+
     Returns
     -------
     sp.csr_matrix
-        Sparse matrix representing the new target nodes (columns) that each source node (rows) spreads to 
+        Sparse matrix representing the new target nodes (columns) that each source node (rows) spreads to
     """
     p_mat = p_mat.tocsr()
     n_pick = np.array(p_mat.sum(axis=1))[:, 0]
@@ -170,10 +181,9 @@ def evaluate_probs_less_random(p_mat, adjust=None):
             picked.append(np.random.choice(p_mat.indices[a:b], c, p=p, replace=False))
     picked = np.hstack(picked)
     indptr_out = np.cumsum(indptr_out)
-    m_out = sp.csr_matrix((np.ones(indptr_out[-1], dtype=bool), 
-                            np.hstack(picked),
-                            indptr_out),
-                            shape=p_mat.shape).tocoo()
+    m_out = sp.csr_matrix(
+        (np.ones(indptr_out[-1], dtype=bool), np.hstack(picked), indptr_out), shape=p_mat.shape
+    ).tocoo()
     return m_out
 
 
@@ -192,13 +202,13 @@ def evaluate_probs(p_mat, adjust=None, less_random=False):
         Optional array of weight vectors. Scales the values of p_mat of the corresponding rows. In the manuscript
         (see above) this is 1 / r.
     less_random : bool
-        If set to true, then the less stochastic version of the spread is used. That is, for each source node 
+        If set to true, then the less stochastic version of the spread is used. That is, for each source node
         (row in p_mat) the process spreads to exactly the expected number of nodes instead of a random number.
-    
+
     Returns
     -------
     sp.coo_matrix
-        Sparse matrix representing the new target nodes (columns) that each source node (rows) spreads to 
+        Sparse matrix representing the new target nodes (columns) that each source node (rows) spreads to
     """
     if less_random:
         return evaluate_probs_less_random(p_mat, adjust=adjust)
@@ -209,6 +219,7 @@ def evaluate_probs(p_mat, adjust=None, less_random=False):
     _v = np.random.rand(p_mat.nnz) < thresh
     m_out = sp.coo_matrix((np.ones(_v.sum()), (p_mat.row[_v], p_mat.col[_v])), shape=p_mat.shape)
     return m_out
+
 
 def connection_df_to_csc_matrix(w, mirror=True, shape=None):
     """
@@ -225,7 +236,7 @@ def connection_df_to_csc_matrix(w, mirror=True, shape=None):
         from vertex i to j exists, a connection is also placed from j to i if it does not already exist.
     shape : tuple
         The shape of the output matrix. If not provided, it will be guessed based on the indices in `w`.
-    
+
     Returns
     ----------
     sp.coo_matrix
@@ -241,16 +252,15 @@ def connection_df_to_csc_matrix(w, mirror=True, shape=None):
         _idx = np.hstack([idx, idy])
         _idy = np.hstack([idy, idx])
         _w = np.hstack([w, w])
-        M = sp.coo_matrix((_w, (_idy, _idx)),
-                              shape=shape).tocsc()
+        M = sp.coo_matrix((_w, (_idy, _idx)), shape=shape).tocsc()
     else:
-        M = sp.coo_matrix((w, (idy, idx)),
-                              shape=shape).tocsc()
+        M = sp.coo_matrix((w, (idy, idx)), shape=shape).tocsc()
     return M
 
-def direction_or_distance_dependent_w(pts_src, pts_tgt, idx,
-                                       directionality_fac=0.0, directionality_axis=None,
-                                       distance_func=None):
+
+def direction_or_distance_dependent_w(
+    pts_src, pts_tgt, idx, directionality_fac=0.0, directionality_axis=None, distance_func=None
+):
     """
     Calculates weights for potential edges based on distance or direction between vertices.
 
@@ -266,22 +276,22 @@ def direction_or_distance_dependent_w(pts_src, pts_tgt, idx,
         Each entry is a list of indices into `pts_tgt` that specifies the potential targets of that source vertex.
         This corresponds to the output obtained from querying a scipy.spatial.KDTree.
     directionality_axis : numpy.array
-        Shape: (3, ) This introduces a directionality bias, i.e., the calculated weight is larger if the direction 
+        Shape: (3, ) This introduces a directionality bias, i.e., the calculated weight is larger if the direction
         of a potential edge aligns with a specified vector and less likely if the direction is in the opposite
         direction of the vector. This is calculated as the dot product of the direction vector of the potential
-        connection with  `directionality_axis`. 
+        connection with  `directionality_axis`.
     directionality_fac : float
         Must be between -1 and 1. This specifies how much the dot product calculated using `directionality_axis`
         (see above) is weighed to calculate a bias. Formally:
         w = (delta o directionality_axis) * directionality_fac + 1,
         where o denotes the vector dot product, delta is the vector from the source to the target vertex of a
-        potential connection. 
+        potential connection.
         Directionality bias cannot be combined with distance bias (see below).
     distance_func : function
         A function that is to be evaluated on pairwise distances of candidate pairs. The function takes a
-        distance as input and returns a relative weight. 
+        distance as input and returns a relative weight.
         Cannot be combined with a directionality bias (see above).
-    
+
     Returns
     ----------
     pandas.Series
@@ -289,27 +299,39 @@ def direction_or_distance_dependent_w(pts_src, pts_tgt, idx,
     """
     if distance_func is None:
         distance_func = lambda _x: 1.0
-    A = pd.DataFrame(pts_src[:, :3], columns=pd.Index(["x", "y", "z"], name="coord"),
-                                    index=pd.Index(range(len(pts_src)), name="neuron"))
-    B = pd.concat([pd.DataFrame(pts_tgt[_idx, :3], index=pd.Index(_idx, name="i"),
-                    columns=pd.Index(["x", "y", "z"], name="coord"))
-                for _idx in idx],
-                axis=0, keys=range(len(idx)), names=["neuron"])
+    A = pd.DataFrame(
+        pts_src[:, :3],
+        columns=pd.Index(["x", "y", "z"], name="coord"),
+        index=pd.Index(range(len(pts_src)), name="neuron"),
+    )
+    B = pd.concat(
+        [
+            pd.DataFrame(
+                pts_tgt[_idx, :3],
+                index=pd.Index(_idx, name="i"),
+                columns=pd.Index(["x", "y", "z"], name="coord"),
+            )
+            for _idx in idx
+        ],
+        axis=0,
+        keys=range(len(idx)),
+        names=["neuron"],
+    )
     ab_diff = A - B
-    
+
     pairw_D = pd.Series(np.linalg.norm(ab_diff, axis=1), index=ab_diff.index)
 
     if directionality_axis is not None:
         directionality_axis = np.array(directionality_axis).reshape((-1, 1))
-        align = pd.Series(np.dot(ab_diff, directionality_axis)[:, 0],
-                              index=ab_diff.index) / pairw_D
+        align = pd.Series(np.dot(ab_diff, directionality_axis)[:, 0], index=ab_diff.index) / pairw_D
         return (align * directionality_fac + 1) * pairw_D.apply(distance_func)
 
     return pairw_D.apply(distance_func)
 
+
 def evaluate_per_node_weights(w_out, w_in, idx):
     """
-    Calculates weights for potential edges, based on weights specified per vertex for outgoing 
+    Calculates weights for potential edges, based on weights specified per vertex for outgoing
     and/or incoming edges.
 
     Parameters
@@ -326,7 +348,7 @@ def evaluate_per_node_weights(w_out, w_in, idx):
         i.e., the same length as `w_out`.
         Each entry is a list of indices into `w_in` that specifies the potential targets of that source vertex.
         This corresponds to the output obtained from querying a scipy.spatial.KDTree.
-    
+
     Returns
     ----------
     pandas.Series
@@ -336,8 +358,9 @@ def evaluate_per_node_weights(w_out, w_in, idx):
     w_out = np.array(w_out)
     w_in = np.array(w_in)
 
-    W = [pd.Series(_w_o * w_in[_idx], name="weight",
-                       index=pd.Index(_idx, name="i"))
-         for _w_o, _idx in zip(w_out, idx)]
+    W = [
+        pd.Series(_w_o * w_in[_idx], name="weight", index=pd.Index(_idx, name="i"))
+        for _w_o, _idx in zip(w_out, idx)
+    ]
     W = pd.concat(W, axis=0, keys=range(len(idx)), names=["neuron"])
     return W

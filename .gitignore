@@ -3,7 +3,6 @@
 coverage.xml
 *.egg-info
 .coverage
-doc/
 .tox
 build/
 dist/
@@ -12,4 +11,10 @@ dist/
 extra/
 __pycache__
 *.so
-**/pybind11/
+
+# environments and tool caches
+.venv/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+uv.lock

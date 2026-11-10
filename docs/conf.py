@@ -1,8 +1,8 @@
 """Sphinx configuration for connectome-analysis."""
 
-from pathlib import Path
+import importlib.metadata
 import sys
-
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
@@ -10,7 +10,12 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 project = "Connectome Analysis"
 author = "Open Brain Institute"
 copyright = "2023-2025 Open Brain Institute / EPFL"
-release = "1.1.0"
+try:
+    release = importlib.metadata.version("connectome-analysis")
+except (
+    importlib.metadata.PackageNotFoundError
+):  # building the documentation without installing the package
+    release = "unknown"
 
 extensions = [
     "myst_parser",

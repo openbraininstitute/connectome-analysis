@@ -8,32 +8,49 @@
 # Last modified: 04/2023
 
 
+import itertools
+import json
+import logging
+import os
+import pickle
+import sys
+
 import numpy as np
 import pandas as pd
-import os
 import scipy.optimize as opt
 import scipy.sparse as sps
 import scipy.spatial as spt
-import matplotlib.pyplot as plt
-import itertools
-import tqdm
-import pickle
-import sys
-import logging
-import json
 
-stream_handler = logging.StreamHandler(sys.stdout)
-stream_handler.setFormatter(logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s'))
-logging.basicConfig(level=logging.INFO, handlers=[stream_handler])
+LOG = logging.getLogger(__name__)
 
-PROB_CMAP = plt.colormaps.get_cmap('hot')
-DATA_COLOR = 'tab:blue'
-MODEL_COLOR = 'tab:red'
-MODEL_COLOR2 = 'tab:olive'
+DATA_COLOR = "tab:blue"
+MODEL_COLOR = "tab:red"
+MODEL_COLOR2 = "tab:olive"
+
+
+def _pyplot():
+    """matplotlib's pyplot, which is only needed for the figures of the model building."""
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError as error:  # pragma: no cover
+        raise ImportError(
+            "matplotlib is needed to plot the models: pip install 'connectome-analysis[plot]'"
+        ) from error
+    return plt
+
+
+def __getattr__(name):
+    if (
+        name == "PROB_CMAP"
+    ):  # was a module level constant, which meant importing matplotlib with this module
+        return _pyplot().colormaps.get_cmap("hot")
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 ###################################################################################################
 # Wrapper function for running model building from a SLURM batch script (optionally, on different data splits)
 ###################################################################################################
+
 
 def run_batch_model_building(adj_file, nrn_file, cfg_file, N_split=None, part_idx=None):
     """Main function for data extraction and model building to be used in a batch script on different data splits.
@@ -100,25 +117,27 @@ def run_batch_model_building(adj_file, nrn_file, cfg_file, N_split=None, part_id
 
     # Load adjacency matrix (.npz) & neuron properties table (.h5 or .feather)
     adj = sps.load_npz(adj_file)
-    if os.path.splitext(nrn_file)[-1] == '.h5':
+    if os.path.splitext(nrn_file)[-1] == ".h5":
         node_properties = pd.read_hdf(nrn_file)
-    elif os.path.splitext(nrn_file)[-1] == '.feather':
+    elif os.path.splitext(nrn_file)[-1] == ".feather":
         node_properties = pd.read_feather(nrn_file)
     else:
-        assert False, f'ERROR: Neuron table format "{os.path.splitext(nrn_file)[-1]}" not supported!'
+        raise AssertionError(
+            f'ERROR: Neuron table format "{os.path.splitext(nrn_file)[-1]}" not supported!'
+        )
 
-    assert adj.shape[0] == adj.shape[1] == node_properties.shape[0], 'ERROR: Data size mismatch!'
-    logging.info(f'Loaded connectivity and properties of {node_properties.shape[0]} neurons')
+    assert adj.shape[0] == adj.shape[1] == node_properties.shape[0], "ERROR: Data size mismatch!"
+    LOG.info(f"Loaded connectivity and properties of {node_properties.shape[0]} neurons")
 
     # Load config file (.json)
-    with open(cfg_file, 'r') as f:
+    with open(cfg_file) as f:
         config_dict = json.load(f)
 
     # Set/Overwrite data split options
     if N_split is not None:
-        config_dict.update({'N_split': int(N_split)})
+        config_dict.update({"N_split": int(N_split)})
     if part_idx is not None:
-        config_dict.update({'part_idx': int(part_idx)})
+        config_dict.update({"part_idx": int(part_idx)})
 
     # Run model building
     run_model_building(adj, node_properties, **config_dict)
@@ -130,6 +149,7 @@ def run_batch_model_building(adj_file, nrn_file, cfg_file, N_split=None, part_id
 #   _Inputs_: adj, node_properties, kwargs (bin_size_um, max_range_um, sample_size, sample_seeds)
 #   _Output_: Pandas dataframe with model paramters (columns) for different seeds (rows)
 ###################################################################################################
+
 
 def conn_prob_2nd_order_model(adj, node_properties, **kwargs):
     r"""Wrapper function for 2nd-order probability model building to be used within a processing pipeline, optionally for multiple random subsets of neurons.
@@ -189,7 +209,7 @@ def conn_prob_2nd_order_model(adj, node_properties, **kwargs):
     See Also
     --------
     conn_prob_2nd_order_pathway_model : 2nd-order model building function wrapper for different source/target node populations
-    
+
     conn_prob_model : Underlying generic model building function wrapper
 
     References
@@ -198,7 +218,7 @@ def conn_prob_2nd_order_model(adj, node_properties, **kwargs):
 
     """
 
-    assert 'model_order' not in kwargs.keys(), f'ERROR: Invalid argument "model_order" in kwargs!'
+    assert "model_order" not in kwargs.keys(), 'ERROR: Invalid argument "model_order" in kwargs!'
 
     return conn_prob_model(adj, node_properties, model_order=2, **kwargs)
 
@@ -258,9 +278,11 @@ def conn_prob_2nd_order_pathway_model(adj, node_properties_src, node_properties_
 
     """
 
-    assert 'model_order' not in kwargs.keys(), f'ERROR: Invalid argument "model_order" in kwargs!'
+    assert "model_order" not in kwargs.keys(), 'ERROR: Invalid argument "model_order" in kwargs!'
 
-    return conn_prob_pathway_model(adj, node_properties_src, node_properties_tgt, model_order=2, **kwargs)
+    return conn_prob_pathway_model(
+        adj, node_properties_src, node_properties_tgt, model_order=2, **kwargs
+    )
 
 
 def conn_prob_3rd_order_model(adj, node_properties, **kwargs):
@@ -336,7 +358,7 @@ def conn_prob_3rd_order_model(adj, node_properties, **kwargs):
 
     """
 
-    assert 'model_order' not in kwargs.keys(), f'ERROR: Invalid argument "model_order" in kwargs!'
+    assert "model_order" not in kwargs.keys(), 'ERROR: Invalid argument "model_order" in kwargs!'
 
     return conn_prob_model(adj, node_properties, model_order=3, **kwargs)
 
@@ -396,9 +418,11 @@ def conn_prob_3rd_order_pathway_model(adj, node_properties_src, node_properties_
 
     """
 
-    assert 'model_order' not in kwargs.keys(), f'ERROR: Invalid argument "model_order" in kwargs!'
+    assert "model_order" not in kwargs.keys(), 'ERROR: Invalid argument "model_order" in kwargs!'
 
-    return conn_prob_pathway_model(adj, node_properties_src, node_properties_tgt, model_order=3, **kwargs)
+    return conn_prob_pathway_model(
+        adj, node_properties_src, node_properties_tgt, model_order=3, **kwargs
+    )
 
 
 def conn_prob_model(adj, node_properties, **kwargs):
@@ -470,38 +494,50 @@ def conn_prob_model(adj, node_properties, **kwargs):
 
     """
 
-    assert adj.shape[0] == adj.shape[1] == node_properties.shape[0], 'ERROR: Data size mismatch!'
+    assert adj.shape[0] == adj.shape[1] == node_properties.shape[0], "ERROR: Data size mismatch!"
 
-    invalid_args = ['model_name', 'sample_seed', 'model_dir', 'data_dir', 'plot_dir', 'do_plot', 'part_idx'] # Not allowed arguments, as they will be set/used internally
+    invalid_args = [
+        "model_name",
+        "sample_seed",
+        "model_dir",
+        "data_dir",
+        "plot_dir",
+        "do_plot",
+        "part_idx",
+    ]  # Not allowed arguments, as they will be set/used internally
     for arg in invalid_args:
         assert arg not in kwargs.keys(), f'ERROR: Invalid argument "{arg}" in kwargs!'
-    kwargs.update({'model_dir': None, 'data_dir': None, 'plot_dir': None, 'do_plot': False, 'part_idx': None}) # Disable plotting/saving
+    kwargs.update(
+        {"model_dir": None, "data_dir": None, "plot_dir": None, "do_plot": False, "part_idx": None}
+    )  # Disable plotting/saving
     model_name = None
-    model_order = kwargs.pop('model_order')
+    model_order = kwargs.pop("model_order")
 
-    sample_size = kwargs.get('sample_size')
+    sample_size = kwargs.get("sample_size")
     if sample_size is None or sample_size <= 0 or sample_size >= node_properties.shape[0]:
-        sample_seeds = [None] # No randomization
-        if kwargs.pop('sample_seeds', None) is not None:
-            logging.warning('Using all neurons, ignoring sample seeds!')
+        sample_seeds = [None]  # No randomization
+        if kwargs.pop("sample_seeds", None) is not None:
+            LOG.warning("Using all neurons, ignoring sample seeds!")
     else:
-        sample_seeds = kwargs.pop('sample_seeds', 1)
+        sample_seeds = kwargs.pop("sample_seeds", 1)
 
-        if not isinstance(sample_seeds, list): # sample_seeds corresponds to number of seeds to generate
-            sample_seeds = _generate_seeds(sample_seeds, meta_seed=kwargs.pop('meta_seed', 0))
+        if not isinstance(
+            sample_seeds, list
+        ):  # sample_seeds corresponds to number of seeds to generate
+            sample_seeds = _generate_seeds(sample_seeds, meta_seed=kwargs.pop("meta_seed", 0))
         else:
             num_seeds = len(sample_seeds)
-            sample_seeds = list(np.unique(sample_seeds)) # Assure that unique and sorted
+            sample_seeds = list(np.unique(sample_seeds))  # Assure that unique and sorted
             if len(sample_seeds) < num_seeds:
-                logging.warning(f'Duplicate seeds provided!')
+                LOG.warning("Duplicate seeds provided!")
 
-    model_params = pd.DataFrame()
+    rows = []
     for seed in sample_seeds:
-        kwargs.update({'sample_seed': seed})
+        kwargs.update({"sample_seed": seed})
         _, model_dict = run_model_building(adj, node_properties, model_name, model_order, **kwargs)
-        model_params = pd.concat([model_params, pd.DataFrame(model_dict['model_params'], index=pd.Index([seed], name='seed'))])
+        rows.append(pd.DataFrame(model_dict["model_params"], index=pd.Index([seed], name="seed")))
 
-    return model_params
+    return pd.concat(rows) if rows else pd.DataFrame()
 
 
 def conn_prob_pathway_model(adj, node_properties_src, node_properties_tgt, **kwargs):
@@ -565,48 +601,78 @@ def conn_prob_pathway_model(adj, node_properties_src, node_properties_tgt, **kwa
 
     """
 
-    assert adj.shape[0] == node_properties_src.shape[0] and adj.shape[1] == node_properties_tgt.shape[0], 'ERROR: Data size mismatch!'
+    assert (
+        adj.shape[0] == node_properties_src.shape[0]
+        and adj.shape[1] == node_properties_tgt.shape[0]
+    ), "ERROR: Data size mismatch!"
 
-    invalid_args = ['model_name', 'sample_seed', 'model_dir', 'data_dir', 'plot_dir', 'do_plot', 'part_idx'] # Not allowed arguments, as they will be set/used internally
+    invalid_args = [
+        "model_name",
+        "sample_seed",
+        "model_dir",
+        "data_dir",
+        "plot_dir",
+        "do_plot",
+        "part_idx",
+    ]  # Not allowed arguments, as they will be set/used internally
     for arg in invalid_args:
         assert arg not in kwargs.keys(), f'ERROR: Invalid argument "{arg}" in kwargs!'
-    kwargs.update({'model_dir': None, 'data_dir': None, 'plot_dir': None, 'do_plot': False, 'part_idx': None}) # Disable plotting/saving
+    kwargs.update(
+        {"model_dir": None, "data_dir": None, "plot_dir": None, "do_plot": False, "part_idx": None}
+    )  # Disable plotting/saving
     model_name = None
-    model_order = kwargs.pop('model_order')
+    model_order = kwargs.pop("model_order")
 
-    sample_size = kwargs.get('sample_size')
-    if sample_size is None  or sample_size <= 0 or sample_size >= np.maximum(node_properties_src.shape[0], node_properties_tgt.shape[0]):
-        sample_seeds = [None] # No randomization
-        if kwargs.pop('sample_seeds', None) is not None:
-            logging.warning('Using all neurons, ignoring sample seeds!')
+    sample_size = kwargs.get("sample_size")
+    if (
+        sample_size is None
+        or sample_size <= 0
+        or sample_size >= np.maximum(node_properties_src.shape[0], node_properties_tgt.shape[0])
+    ):
+        sample_seeds = [None]  # No randomization
+        if kwargs.pop("sample_seeds", None) is not None:
+            LOG.warning("Using all neurons, ignoring sample seeds!")
     else:
-        sample_seeds = kwargs.pop('sample_seeds', 1)
+        sample_seeds = kwargs.pop("sample_seeds", 1)
 
-        if not isinstance(sample_seeds, list): # sample_seeds corresponds to number of seeds to generate
-            sample_seeds = _generate_seeds(sample_seeds, meta_seed=kwargs.pop('meta_seed', 0))
+        if not isinstance(
+            sample_seeds, list
+        ):  # sample_seeds corresponds to number of seeds to generate
+            sample_seeds = _generate_seeds(sample_seeds, meta_seed=kwargs.pop("meta_seed", 0))
         else:
             num_seeds = len(sample_seeds)
-            sample_seeds = list(np.unique(sample_seeds)) # Assure that unique and sorted
+            sample_seeds = list(np.unique(sample_seeds))  # Assure that unique and sorted
             if len(sample_seeds) < num_seeds:
-                logging.warning(f'Duplicate seeds provided!')
+                LOG.warning("Duplicate seeds provided!")
 
-    model_params = pd.DataFrame()
+    rows = []
     for seed in sample_seeds:
-        kwargs.update({'sample_seed': seed})
-        _, model_dict = run_pathway_model_building(adj, node_properties_src, node_properties_tgt, model_name, model_order, **kwargs)
-        model_params = pd.concat([model_params, pd.DataFrame(model_dict['model_params'], index=pd.Index([seed], name='seed'))])
+        kwargs.update({"sample_seed": seed})
+        _, model_dict = run_pathway_model_building(
+            adj, node_properties_src, node_properties_tgt, model_name, model_order, **kwargs
+        )
+        rows.append(pd.DataFrame(model_dict["model_params"], index=pd.Index([seed], name="seed")))
 
-    return model_params
+    return pd.concat(rows) if rows else pd.DataFrame()
 
 
 def _generate_seeds(num_seeds, num_digits=6, meta_seed=0):
     """Helper function to generate list of unique random seeds with given number of digits."""
 
-    assert isinstance(num_seeds, int) and num_seeds > 0, 'ERROR: Number of seeds must be a positive integer!'
-    assert isinstance(num_digits, int) and num_digits > 0, 'ERROR: Number of digits must be a positive integer!'
+    assert isinstance(num_seeds, int) and num_seeds > 0, (
+        "ERROR: Number of seeds must be a positive integer!"
+    )
+    assert isinstance(num_digits, int) and num_digits > 0, (
+        "ERROR: Number of digits must be a positive integer!"
+    )
 
     np.random.seed(meta_seed)
-    sample_seeds = list(sorted(np.random.choice(10**num_digits - 10**(num_digits - 1), num_seeds, replace=False) + 10**(num_digits - 1))) # Sorted, 6-digit seeds
+    sample_seeds = list(
+        sorted(
+            np.random.choice(10**num_digits - 10 ** (num_digits - 1), num_seeds, replace=False)
+            + 10 ** (num_digits - 1)
+        )
+    )  # Sorted, 6-digit seeds
 
     return sample_seeds
 
@@ -614,6 +680,7 @@ def _generate_seeds(num_seeds, num_digits=6, meta_seed=0):
 ###################################################################################################
 # Main function for model building
 ###################################################################################################
+
 
 def run_model_building(adj, node_properties, model_name, model_order, **kwargs):
     """Main function for probability model building, consisting of three steps: Data extraction, model fitting, and (optionally) data/model visualization.
@@ -682,72 +749,88 @@ def run_model_building(adj, node_properties, model_name, model_order, **kwargs):
 
     """
 
-    logging.info(f'Running order-{model_order} model building {kwargs}...')
+    LOG.info(f"Running order-{model_order} model building {kwargs}...")
 
-    assert adj.shape[0] == adj.shape[1] == node_properties.shape[0], 'ERROR: Data size mismatch!'
+    assert adj.shape[0] == adj.shape[1] == node_properties.shape[0], "ERROR: Data size mismatch!"
 
     # Subsampling (optional)
-    sample_size = kwargs.get('sample_size')
-    sample_seed = kwargs.get('sample_seed')
+    sample_size = kwargs.get("sample_size")
+    sample_seed = kwargs.get("sample_seed")
     if sample_size is not None and sample_size > 0 and sample_size < node_properties.shape[0]:
-        logging.info(f'Subsampling to {sample_size} of {node_properties.shape[0]} neurons (seed={sample_seed})')
+        LOG.info(
+            f"Subsampling to {sample_size} of {node_properties.shape[0]} neurons (seed={sample_seed})"
+        )
         np.random.seed(sample_seed)
-        sub_sel = np.random.permutation([True] * sample_size + [False] * (node_properties.shape[0] - sample_size))
+        sub_sel = np.random.permutation(
+            [True] * sample_size + [False] * (node_properties.shape[0] - sample_size)
+        )
         adj = adj.tocsr()[sub_sel, :].tocsc()[:, sub_sel].tocsr()
         node_properties = node_properties.loc[sub_sel, :]
 
     # Set modelling functions
-    if model_order == 2: # Distance-dependent
+    if model_order == 2:  # Distance-dependent
         fct_extract = _extract_2nd_order
         fct_fit = _build_2nd_order
         fct_plot = _plot_2nd_order
-    elif model_order == 3: # Bipolar distance-dependent
+    elif model_order == 3:  # Bipolar distance-dependent
         fct_extract = _extract_3rd_order
         fct_fit = _build_3rd_order
         fct_plot = _plot_3rd_order
     else:
-        assert False, f'ERROR: Order-{model_order} model building not supported!'
+        raise AssertionError(f"ERROR: Order-{model_order} model building not supported!")
 
     # Data splits (optional)
-    N_split = kwargs.pop('N_split', None)
-    part_idx = kwargs.pop('part_idx', None)
+    N_split = kwargs.pop("N_split", None)
+    part_idx = kwargs.pop("part_idx", None)
     if N_split is None:
         split_indices = None
     else:
-        assert N_split > 1, 'ERROR: Number of data splits must be larger than 1!'
-        split_indices = np.split(np.arange(node_properties.shape[0]), np.cumsum([np.ceil(node_properties.shape[0] / N_split).astype(int)] * (N_split - 1)))
+        assert N_split > 1, "ERROR: Number of data splits must be larger than 1!"
+        split_indices = np.split(
+            np.arange(node_properties.shape[0]),
+            np.cumsum([np.ceil(node_properties.shape[0] / N_split).astype(int)] * (N_split - 1)),
+        )
 
-    if part_idx is None or part_idx == -1: # Run data extraction and model building for all splits
+    if part_idx is None or part_idx == -1:  # Run data extraction and model building for all splits
         extract_only = False
-        data_fn = 'data'
-    else: # Run only data extraction of given part idx
-        assert N_split is not None and 0 <= part_idx < N_split, 'ERROR: Part index out of range!'
+        data_fn = "data"
+    else:  # Run only data extraction of given part idx
+        assert N_split is not None and 0 <= part_idx < N_split, "ERROR: Part index out of range!"
         extract_only = True
-        data_fn = 'data' + _get_data_part_name(N_split, part_idx)
+        data_fn = "data" + _get_data_part_name(N_split, part_idx)
 
     # Extract connection probability data
-    if part_idx == -1: # Special case: Load and merge results of existing parts
-        assert N_split is not None, 'ERROR: Number of data splits required!'
-        data_dict = _merge_data(kwargs.get('data_dir'), model_name, data_fn, [_get_data_part_name(N_split, p) for p in range(N_split)])
+    if part_idx == -1:  # Special case: Load and merge results of existing parts
+        assert N_split is not None, "ERROR: Number of data splits required!"
+        data_dict = _merge_data(
+            kwargs.get("data_dir"),
+            model_name,
+            data_fn,
+            [_get_data_part_name(N_split, p) for p in range(N_split)],
+        )
     else:
-        data_dict = fct_extract(adj, node_properties, split_indices=split_indices, part_idx=part_idx, **kwargs)
-    _save_data(data_dict, kwargs.get('data_dir'), model_name, data_fn)
+        data_dict = fct_extract(
+            adj, node_properties, split_indices=split_indices, part_idx=part_idx, **kwargs
+        )
+    _save_data(data_dict, kwargs.get("data_dir"), model_name, data_fn)
 
-    if extract_only: # Stop here and return data dict
+    if extract_only:  # Stop here and return data dict
         return data_dict, {}
 
     # Fit model
     model_dict = fct_fit(**data_dict, **kwargs)
-    _save_data(model_dict, kwargs.get('model_dir'), model_name, 'model')
+    _save_data(model_dict, kwargs.get("model_dir"), model_name, "model")
 
     # Visualize data/model (optional)
-    if kwargs.get('do_plot'):
+    if kwargs.get("do_plot"):
         fct_plot(adj, node_properties, model_name, **data_dict, **model_dict, **kwargs)
 
     return data_dict, model_dict
 
 
-def run_pathway_model_building(adj, node_properties_src, node_properties_tgt, model_name, model_order, **kwargs):
+def run_pathway_model_building(
+    adj, node_properties_src, node_properties_tgt, model_name, model_order, **kwargs
+):
     """Main function for probability model building for pathways with different source and target node populations, consisting of three steps: Data extraction, model fitting, and (optionally) data/model visualization.
 
     Parameters
@@ -803,23 +886,36 @@ def run_pathway_model_building(adj, node_properties_src, node_properties_tgt, mo
 
     """
 
-    logging.info(f'Running order-{model_order} model building {kwargs}...')
+    LOG.info(f"Running order-{model_order} model building {kwargs}...")
 
-    assert adj.shape[0] == node_properties_src.shape[0] and adj.shape[1] == node_properties_tgt.shape[0], 'ERROR: Data size mismatch!'
+    assert (
+        adj.shape[0] == node_properties_src.shape[0]
+        and adj.shape[1] == node_properties_tgt.shape[0]
+    ), "ERROR: Data size mismatch!"
 
     # Subsampling (optional)
-    sample_size = kwargs.get('sample_size')
-    sample_seed = kwargs.get('sample_seed')
-    if sample_size is not None and sample_size > 0 and sample_size < np.maximum(node_properties_src.shape[0], node_properties_tgt.shape[0]):
-        logging.info(f'Subsampling to {sample_size} of {node_properties_src.shape[0]}x{node_properties_tgt.shape[0]} neurons (seed={sample_seed})')
+    sample_size = kwargs.get("sample_size")
+    sample_seed = kwargs.get("sample_seed")
+    if (
+        sample_size is not None
+        and sample_size > 0
+        and sample_size < np.maximum(node_properties_src.shape[0], node_properties_tgt.shape[0])
+    ):
+        LOG.info(
+            f"Subsampling to {sample_size} of {node_properties_src.shape[0]}x{node_properties_tgt.shape[0]} neurons (seed={sample_seed})"
+        )
         np.random.seed(sample_seed)
         if sample_size < node_properties_src.shape[0]:
-            sub_sel_src = np.random.permutation([True] * sample_size + [False] * (node_properties_src.shape[0] - sample_size))
+            sub_sel_src = np.random.permutation(
+                [True] * sample_size + [False] * (node_properties_src.shape[0] - sample_size)
+            )
         else:
             sub_sel_src = np.full(node_properties_src.shape[0], True)
 
         if sample_size < node_properties_tgt.shape[0]:
-            sub_sel_tgt = np.random.permutation([True] * sample_size + [False] * (node_properties_tgt.shape[0] - sample_size))
+            sub_sel_tgt = np.random.permutation(
+                [True] * sample_size + [False] * (node_properties_tgt.shape[0] - sample_size)
+            )
         else:
             sub_sel_tgt = np.full(node_properties_tgt.shape[0], True)
 
@@ -829,34 +925,43 @@ def run_pathway_model_building(adj, node_properties_src, node_properties_tgt, mo
         node_properties_tgt = node_properties_tgt.loc[sub_sel_tgt, :]
 
     # Set modelling functions
-    if model_order == 2: # Distance-dependent
+    if model_order == 2:  # Distance-dependent
         fct_extract = _extract_2nd_order_pathway
         fct_fit = _build_2nd_order
         fct_plot = _plot_2nd_order
-    elif model_order == 3: # Bipolar distance-dependent
+    elif model_order == 3:  # Bipolar distance-dependent
         fct_extract = _extract_3rd_order_pathway
         fct_fit = _build_3rd_order
         fct_plot = _plot_3rd_order
     else:
-        assert False, f'ERROR: Order-{model_order} model building not supported!'
+        raise AssertionError(f"ERROR: Order-{model_order} model building not supported!")
 
     # Data splits (optional)
-    N_split = kwargs.pop('N_split', None)
-    part_idx = kwargs.pop('part_idx', None)
-    assert N_split is None and part_idx is None, 'ERROR: Data splitting not supported!'
-    data_fn = 'data'
+    N_split = kwargs.pop("N_split", None)
+    part_idx = kwargs.pop("part_idx", None)
+    assert N_split is None and part_idx is None, "ERROR: Data splitting not supported!"
+    data_fn = "data"
 
     # Extract connection probability data
-    data_dict = fct_extract(adj, node_properties_src, node_properties_tgt, split_indices=None, part_idx=None, **kwargs)
-    _save_data(data_dict, kwargs.get('data_dir'), model_name, data_fn)
+    data_dict = fct_extract(
+        adj, node_properties_src, node_properties_tgt, split_indices=None, part_idx=None, **kwargs
+    )
+    _save_data(data_dict, kwargs.get("data_dir"), model_name, data_fn)
 
     # Fit model
     model_dict = fct_fit(**data_dict, **kwargs)
-    _save_data(model_dict, kwargs.get('model_dir'), model_name, 'model')
+    _save_data(model_dict, kwargs.get("model_dir"), model_name, "model")
 
     # Visualize data/model (optional)
-    if kwargs.get('do_plot'):
-        fct_plot(adj, [node_properties_src, node_properties_tgt], model_name, **data_dict, **model_dict, **kwargs)
+    if kwargs.get("do_plot"):
+        fct_plot(
+            adj,
+            [node_properties_src, node_properties_tgt],
+            model_name,
+            **data_dict,
+            **model_dict,
+            **kwargs,
+        )
 
     return data_dict, model_dict
 
@@ -865,38 +970,49 @@ def run_pathway_model_building(adj, node_properties_src, node_properties_tgt, mo
 # Helper functions for model building
 ###################################################################################################
 
+
 def _merge_data(part_dir, model_name, spec_name, part_list):
     """Merges data from different data splits."""
-    logging.info(f'Merging {len(part_list)} data parts...')
+    LOG.info(f"Merging {len(part_list)} data parts...")
 
-    count_conn_key = 'count_conn' # (fixed name; independent of model)
-    count_all_key = 'count_all' # (fixed name; independent of model)
-    p_key = None # Name of conn. prob. entry (model-dependent; starting with "p_")
+    count_conn_key = "count_conn"  # (fixed name; independent of model)
+    count_all_key = "count_all"  # (fixed name; independent of model)
+    p_key = None  # Name of conn. prob. entry (model-dependent; starting with "p_")
     for part in part_list:
-        part_file = os.path.join(part_dir, f'{model_name}__{spec_name}{part}.pickle')
+        part_file = os.path.join(part_dir, f"{model_name}__{spec_name}{part}.pickle")
         assert os.path.exists(part_file), f'ERROR: Data part "{part_file}" not found!'
-        with open(part_file, 'rb') as f:
+        with open(part_file, "rb") as f:
             part_dict = pickle.load(f)
 
         # Determine key names and initialize
         if p_key is None:
             part_keys = list(part_dict.keys())
-            p_idx = np.where(np.array([str.find(key, 'p_') for key in part_keys]) == 0)[0]
-            assert len(p_idx) == 1, 'ERROR: Conn. prob. entry could not be determined!'
+            p_idx = np.where(np.array([str.find(key, "p_") for key in part_keys]) == 0)[0]
+            assert len(p_idx) == 1, "ERROR: Conn. prob. entry could not be determined!"
             p_key = part_keys[p_idx[0]]
             other_keys = np.setdiff1d(part_keys, [p_key, count_conn_key, count_all_key]).tolist()
             other_dict = {key: part_dict[key] for key in other_keys}
-            num_bins = len(part_dict[p_key])
             count_conn = np.zeros_like(part_dict[count_conn_key])
             count_all = np.zeros_like(part_dict[count_all_key])
 
         # Check consistency
         assert p_key in part_dict.keys(), f'ERROR: "{p_key}" not found in part "{part}"!'
-        assert count_conn_key in part_dict.keys(), f'ERROR: "{count_conn_key}" not found in part "{part}"!'
-        assert count_all_key in part_dict.keys(), f'ERROR: "{count_all_key}" not found in part "{part}"!'
+        assert count_conn_key in part_dict.keys(), (
+            f'ERROR: "{count_conn_key}" not found in part "{part}"!'
+        )
+        assert count_all_key in part_dict.keys(), (
+            f'ERROR: "{count_all_key}" not found in part "{part}"!'
+        )
         for key in other_keys:
-            assert np.array_equal(other_dict[key], part_dict[key]), f'ERROR: "{key}" mismatch in part "{part}"!'
-        assert part_dict[count_conn_key].shape == part_dict[count_all_key].shape == count_conn.shape == count_all.shape, f'ERROR: Bin count mismatch in part "{part}"!'
+            assert np.array_equal(other_dict[key], part_dict[key]), (
+                f'ERROR: "{key}" mismatch in part "{part}"!'
+            )
+        assert (
+            part_dict[count_conn_key].shape
+            == part_dict[count_all_key].shape
+            == count_conn.shape
+            == count_all.shape
+        ), f'ERROR: Bin count mismatch in part "{part}"!'
 
         # Add counts
         count_conn += part_dict[count_conn_key]
@@ -904,7 +1020,7 @@ def _merge_data(part_dir, model_name, spec_name, part_list):
 
     # Compute overall (merged) connection probabilities
     p_conn = np.array(count_conn / count_all)
-#     p_conn[np.isnan(p_conn)] = 0.0
+    #     p_conn[np.isnan(p_conn)] = 0.0
 
     # Create (merged) data dict
     data_dict = {p_key: p_conn, count_conn_key: count_conn, count_all_key: count_all, **other_dict}
@@ -921,35 +1037,41 @@ def _save_data(save_dict, save_dir, model_name, save_spec=None):
         os.makedirs(save_dir)
 
     if save_spec is None:
-        save_spec = ''
+        save_spec = ""
     else:
-        save_spec = '__' + save_spec
+        save_spec = "__" + save_spec
 
-    save_file = os.path.join(save_dir, f'{model_name}{save_spec}.pickle')
-    with open(save_file, 'wb') as f:
+    save_file = os.path.join(save_dir, f"{model_name}{save_spec}.pickle")
+    with open(save_file, "wb") as f:
         pickle.dump(save_dict, f)
 
-    logging.info(f'Pickled dict written to {save_file}')
+    LOG.info(f"Pickled dict written to {save_file}")
 
 
 def _get_data_part_name(N_split, part_idx):
     """Returns part name of a data split."""
     num_dig = len(str(N_split))
-    return f'__part-{N_split}-{part_idx:0{num_dig}}'
+    return f"__part-{N_split}-{part_idx:0{num_dig}}"
 
 
 def _get_model_function(model, model_inputs, model_params):
     """Returns model function from string representation [so any model function can be saved to file]."""
-    input_str = ','.join(model_inputs + ['model_params=model_params']) # String representation of input variables
-    input_param_str = ','.join(model_inputs + list(model_params.keys())) # String representation of input variables and model parameters
-    model_param_str = ','.join(model_inputs + ['**model_params']) # String representation propagating model parameters
+    input_str = ",".join(
+        model_inputs + ["model_params=model_params"]
+    )  # String representation of input variables
+    input_param_str = ",".join(
+        model_inputs + list(model_params.keys())
+    )  # String representation of input variables and model parameters
+    model_param_str = ",".join(
+        model_inputs + ["**model_params"]
+    )  # String representation propagating model parameters
 
-    inner_model_str = f'lambda {input_param_str}: {model}'
-    full_model_str = f'lambda {input_str}: ({inner_model_str})({model_param_str})' # Use nested lambdas to bind local variables
+    inner_model_str = f"lambda {input_param_str}: {model}"
+    full_model_str = f"lambda {input_str}: ({inner_model_str})({model_param_str})"  # Use nested lambdas to bind local variables
 
-    model_fct = eval(full_model_str) # Build function
+    model_fct = eval(full_model_str)  # Build function
 
-    # logging.info(f'Model function: {inner_model_str}')
+    # LOG.info(f'Model function: {inner_model_str}')
 
     return model_fct
 
@@ -957,17 +1079,17 @@ def _get_model_function(model, model_inputs, model_params):
 def _compute_dist_matrix(src_nrn_pos, tgt_nrn_pos):
     """Computes distance matrix between pairs of neurons."""
     dist_mat = spt.distance_matrix(src_nrn_pos, tgt_nrn_pos)
-    dist_mat[dist_mat == 0.0] = np.nan # Exclude autaptic connections
+    dist_mat[dist_mat == 0.0] = np.nan  # Exclude autaptic connections
 
     return dist_mat
 
 
 def _compute_dist_matrix_symmetric(nrn_pos):
     """Computes symmetric distance matrix between pairs of neurons.
-       Faster implementation to be used when source and target neurons
-       are the same."""
+    Faster implementation to be used when source and target neurons
+    are the same."""
     dist_mat = spt.distance.squareform(spt.distance.pdist(nrn_pos))
-    dist_mat[dist_mat == 0.0] = np.nan # Exclude autaptic connections
+    dist_mat[dist_mat == 0.0] = np.nan  # Exclude autaptic connections
 
     return dist_mat
 
@@ -977,42 +1099,153 @@ def _compute_bip_matrix(src_depths, tgt_depths):
     Computes bipolar matrix between pairs of neurons based on depth difference delta_d:
       POST-synaptic neuron below (delta_d < 0) or above (delta_d > 0) PRE-synaptic neuron
     """
-    bip_mat = np.sign(-np.diff(np.meshgrid(src_depths, tgt_depths, indexing='ij'), axis=0)[0, :, :])
+    bip_mat = np.sign(-np.diff(np.meshgrid(src_depths, tgt_depths, indexing="ij"), axis=0)[0, :, :])
 
     return bip_mat
+
+
+def _bin_indices(values, edges):
+    """Index of the bin of every value, -1 for values in none: ``edges[i] <= value < edges[i + 1]``, but the
+    last bin also holds its upper edge.  ``edges`` must not decrease."""
+    index = np.searchsorted(edges, values, side="right") - 1
+    last = len(edges) - 2
+    index[(index == last + 1) & (values == edges[-1])] = last
+    index[index > last] = -1
+    return index
+
+
+def _exactly_summed(data):
+    """Whether sums of ``data`` are exact in float64 (or float32), so that their order does not matter."""
+    kind = data.dtype.kind
+    if kind == "b":
+        return True
+    if kind in "iu":
+        return float(np.abs(data.astype(np.float64)).sum()) < 2**53
+    if kind == "f" and data.dtype.itemsize >= 4:
+        limit = 2**24 if data.dtype.itemsize == 4 else 2**53
+        return (
+            bool(np.all(data == np.round(data)))
+            and float(np.abs(data.astype(np.float64)).sum()) < limit
+        )
+    return False
+
+
+def _count_pairs_in_bins(adj, dep_matrices, dep_bins):
+    """Counts of all and of connected pairs for every combination of bins, or ``None`` when the counting of the
+    original loop has to be reproduced (edges that decrease, weights that are summed with rounding)."""
+    edges = [np.asarray(b) for b in dep_bins]
+    num_bins = [len(e) - 1 for e in edges]
+    if any(
+        e.ndim != 1 or e.dtype.kind not in "iuf" or np.isnan(e).any() or np.any(np.diff(e) < 0)
+        for e in edges
+    ):
+        return None
+    if any(n < 0 for n in num_bins):
+        return None
+
+    if sps.issparse(adj):
+        entries = adj.tocoo(copy=True)
+        entries.sum_duplicates()
+        rows, cols, data = entries.row, entries.col, entries.data
+    else:
+        dense = np.asarray(adj)
+        rows, cols = np.nonzero(dense)
+        data = dense[rows, cols]
+    if not _exactly_summed(data):
+        return None
+
+    total = int(np.prod(num_bins, dtype=np.int64))
+
+    def flat_index(indices):
+        """Position of the combination of bins, -1 where one of the values is in no bin."""
+        valid = (
+            np.logical_and.reduce([i >= 0 for i in indices]) if indices else np.ones(0, dtype=bool)
+        )
+        return valid, np.ravel_multi_index(
+            [i[valid] for i in indices], num_bins
+        ) if indices else None
+
+    count_all = np.zeros(total, dtype=np.int64)
+    n_rows, n_cols = adj.shape
+    block = max(
+        1, (1 << 22) // max(n_cols, 1)
+    )  # rows per block, to bound the memory of the bin indices
+    for start in range(0, n_rows, block):
+        stop = min(start + block, n_rows)
+        if not dep_matrices:
+            count_all += (stop - start) * n_cols
+            continue
+        indices = [_bin_indices(dep[start:stop], e).ravel() for dep, e in zip(dep_matrices, edges)]
+        count_all += np.bincount(flat_index(indices)[1], minlength=total)
+
+    count_conn = np.zeros(total)
+    if not dep_matrices:
+        count_conn += data.astype(np.float64).sum()
+    else:
+        indices = [_bin_indices(dep[rows, cols], e) for dep, e in zip(dep_matrices, edges)]
+        valid, flat = flat_index(indices)
+        count_conn += np.bincount(flat, weights=data[valid].astype(np.float64), minlength=total)
+    return count_all.reshape(num_bins), count_conn.astype(np.int64).reshape(num_bins)
+
+
+def _count_pairs_in_bins_by_looping(adj, dep_matrices, dep_bins):
+    """One pass over all pairs per combination of bins; sums the weights of the connected pairs in their original
+    order, which matters when they are added with rounding."""
+    num_dep = len(dep_matrices)
+    num_bins = [len(b) - 1 for b in dep_bins]
+    bin_indices = [list(range(n)) for n in num_bins]
+    count_all = np.full(
+        num_bins, -1
+    )  # Count of all pairs of neurons for each combination of dependencies
+    count_conn = np.full(
+        num_bins, -1
+    )  # Count of connected pairs of neurons for each combination of dependencies
+
+    for idx in itertools.product(*bin_indices):
+        dep_sel = np.full(adj.shape, True)
+        for dim in range(num_dep):
+            lower = dep_bins[dim][idx[dim]]
+            upper = dep_bins[dim][idx[dim] + 1]
+            dep_sel = np.logical_and(
+                dep_sel,
+                np.logical_and(
+                    dep_matrices[dim] >= lower,
+                    (dep_matrices[dim] < upper)
+                    if idx[dim] < num_bins[dim] - 1
+                    else (dep_matrices[dim] <= upper),
+                ),
+            )  # Including last edge
+        sidx, tidx = np.nonzero(dep_sel)
+        count_all[idx] = np.sum(dep_sel)
+        # scipy/sparse/compressed.py fails if len(sidx) >= 2**31: split the indices into parts of 2**31-1 length
+        sidx_split = np.split(sidx, np.arange(0, len(sidx), 2**31 - 1)[1:])
+        tidx_split = np.split(tidx, np.arange(0, len(tidx), 2**31 - 1)[1:])
+        count_split = 0
+        for s, t in zip(sidx_split, tidx_split):
+            count_split = count_split + np.sum(adj[s, t])
+        count_conn[idx] = count_split
+    return count_all, count_conn
 
 
 def _extract_dependent_p_conn(adj, dep_matrices, dep_bins):
     """Extract D-dimensional conn. prob. dependent on D property matrices between source-target pairs of neurons within given range of bins."""
     num_dep = len(dep_matrices)
-    assert len(dep_bins) == num_dep, 'ERROR: Dependencies/bins mismatch!'
-    assert np.all([dep_matrices[dim].shape == adj.shape for dim in range(num_dep)]), 'ERROR: Matrix dimension mismatch!'
+    assert len(dep_bins) == num_dep, "ERROR: Dependencies/bins mismatch!"
+    assert np.all([dep_matrices[dim].shape == adj.shape for dim in range(num_dep)]), (
+        "ERROR: Matrix dimension mismatch!"
+    )
 
     # Extract connection probability
     num_bins = [len(b) - 1 for b in dep_bins]
-    bin_indices = [list(range(n)) for n in num_bins]
-    count_all = np.full(num_bins, -1) # Count of all pairs of neurons for each combination of dependencies
-    count_conn = np.full(num_bins, -1) # Count of connected pairs of neurons for each combination of dependencies
-
-    logging.info(f'Extracting {num_dep}-dimensional ({"x".join([str(n) for n in num_bins])}) connection probabilities...')
-    for idx in tqdm.tqdm(itertools.product(*bin_indices), total=np.prod(num_bins)):
-        dep_sel = np.full(adj.shape, True)
-        for dim in range(num_dep):
-            lower = dep_bins[dim][idx[dim]]
-            upper = dep_bins[dim][idx[dim] + 1]
-            dep_sel = np.logical_and(dep_sel, np.logical_and(dep_matrices[dim] >= lower, (dep_matrices[dim] < upper) if idx[dim] < num_bins[dim] - 1 else (dep_matrices[dim] <= upper))) # Including last edge
-        sidx, tidx = np.nonzero(dep_sel)
-        count_all[idx] = np.sum(dep_sel)
-        ### count_conn[idx] = np.sum(adj[sidx, tidx]) # ERROR in scipy/sparse/compressed.py if len(sidx) >= 2**31: "ValueError: could not convert integer scalar"
-        # [WORKAROUND]: Split indices into parts of 2**31-1 length and sum them separately
-        sidx_split = np.split(sidx, np.arange(0, len(sidx), 2**31-1)[1:])
-        tidx_split = np.split(tidx, np.arange(0, len(tidx), 2**31-1)[1:])
-        count_split = 0
-        for s, t in zip(sidx_split, tidx_split):
-            count_split = count_split + np.sum(adj[s, t])
-        count_conn[idx] = count_split
+    LOG.info(
+        f"Extracting {num_dep}-dimensional ({'x'.join([str(n) for n in num_bins])}) connection probabilities..."
+    )
+    counts = _count_pairs_in_bins(adj, dep_matrices, dep_bins)
+    if counts is None:
+        counts = _count_pairs_in_bins_by_looping(adj, dep_matrices, dep_bins)
+    count_all, count_conn = counts
     p_conn = np.array(count_conn / count_all)
-#     p_conn[np.isnan(p_conn)] = 0.0
+    #     p_conn[np.isnan(p_conn)] = 0.0
 
     return p_conn, count_conn, count_all
 
@@ -1022,21 +1255,35 @@ def _extract_dependent_p_conn(adj, dep_matrices, dep_bins):
 #   2nd order (distance-dependent)
 ###################################################################################################
 
-def _extract_2nd_order(adj, node_properties, bin_size_um=100, max_range_um=None, coord_names=None, split_indices=None, part_idx=None, **_):
+
+def _extract_2nd_order(
+    adj,
+    node_properties,
+    bin_size_um=100,
+    max_range_um=None,
+    coord_names=None,
+    split_indices=None,
+    part_idx=None,
+    **_,
+):
     """Extract distance-dependent connection probability (2nd order) from a sample of pairs of neurons."""
 
     if coord_names is None:
-        coord_names = ['x', 'y', 'z'] # Default names of coordinatate system axes as in node_properties
+        coord_names = [
+            "x",
+            "y",
+            "z",
+        ]  # Default names of coordinatate system axes as in node_properties
     if isinstance(split_indices, list):
         N_split = len(split_indices)
     else:
-        N_split = 0 # Don't split
-    if part_idx is not None: # Run only data extraction of given part idx
-        assert 0 <= part_idx < N_split, 'ERROR: Part index out of range!'
+        N_split = 0  # Don't split
+    if part_idx is not None:  # Run only data extraction of given part idx
+        assert 0 <= part_idx < N_split, "ERROR: Part index out of range!"
 
     pos_table = node_properties[coord_names].to_numpy()
 
-    if N_split == 0: # Compute all at once
+    if N_split == 0:  # Compute all at once
         # Compute distance matrix
         dist_mat = _compute_dist_matrix_symmetric(pos_table)
 
@@ -1048,8 +1295,10 @@ def _extract_2nd_order(adj, node_properties, bin_size_um=100, max_range_um=None,
 
         p_conn_dist, count_conn, count_all = _extract_dependent_p_conn(adj, [dist_mat], [dist_bins])
 
-    else: # Split computation into N_split data splits (to reduce memory consumption)
-        assert max_range_um is not None, f'ERROR: Max. range must be specified if data extraction splitted into {N_split} parts!'
+    else:  # Split computation into N_split data splits (to reduce memory consumption)
+        assert max_range_um is not None, (
+            f"ERROR: Max. range must be specified if data extraction splitted into {N_split} parts!"
+        )
         num_bins = np.ceil(max_range_um / bin_size_um).astype(int)
         dist_bins = np.arange(0, num_bins + 1) * bin_size_um
 
@@ -1058,31 +1307,52 @@ def _extract_2nd_order(adj, node_properties, bin_size_um=100, max_range_um=None,
         for sidx, split_sel in enumerate(split_indices):
             if part_idx is not None and part_idx != sidx:
                 continue
-            logging.info(f'<SPLIT {sidx + 1} of {N_split}>')
+            LOG.info(f"<SPLIT {sidx + 1} of {N_split}>")
 
             # Compute distance matrix
             dist_mat_split = _compute_dist_matrix(pos_table[split_sel, :], pos_table)
 
             # Extract distance-dependent connection counts
-            _, count_conn_split, count_all_split = _extract_dependent_p_conn(adj[split_sel, :], [dist_mat_split], [dist_bins])
+            _, count_conn_split, count_all_split = _extract_dependent_p_conn(
+                adj[split_sel, :], [dist_mat_split], [dist_bins]
+            )
             count_conn += count_conn_split
             count_all += count_all_split
 
         # Compute overall connection probabilities
         p_conn_dist = np.array(count_conn / count_all)
-#         p_conn_dist[np.isnan(p_conn_dist)] = 0.0
+    #         p_conn_dist[np.isnan(p_conn_dist)] = 0.0
 
-    return {'p_conn_dist': p_conn_dist, 'count_conn': count_conn, 'count_all': count_all, 'dist_bins': dist_bins}
+    return {
+        "p_conn_dist": p_conn_dist,
+        "count_conn": count_conn,
+        "count_all": count_all,
+        "dist_bins": dist_bins,
+    }
 
 
-def _extract_2nd_order_pathway(adj, node_properties_src, node_properties_tgt, bin_size_um=100, max_range_um=None, coord_names=None, split_indices=None, part_idx=None, **_):
+def _extract_2nd_order_pathway(
+    adj,
+    node_properties_src,
+    node_properties_tgt,
+    bin_size_um=100,
+    max_range_um=None,
+    coord_names=None,
+    split_indices=None,
+    part_idx=None,
+    **_,
+):
     """Extract distance-dependent connection probability (2nd order) from a sample of pairs of neurons
-       for separate pathways (i.e., non-symmetric adj)."""
+    for separate pathways (i.e., non-symmetric adj)."""
 
     if coord_names is None:
-        coord_names = ['x', 'y', 'z'] # Default names of coordinatate system axes as in node_properties
+        coord_names = [
+            "x",
+            "y",
+            "z",
+        ]  # Default names of coordinatate system axes as in node_properties
 
-    assert split_indices is None and part_idx is None, 'ERROR: Data splitting not supported!'
+    assert split_indices is None and part_idx is None, "ERROR: Data splitting not supported!"
 
     pos_table_src = node_properties_src[coord_names].to_numpy()
     pos_table_tgt = node_properties_tgt[coord_names].to_numpy()
@@ -1098,7 +1368,12 @@ def _extract_2nd_order_pathway(adj, node_properties_src, node_properties_tgt, bi
 
     p_conn_dist, count_conn, count_all = _extract_dependent_p_conn(adj, [dist_mat], [dist_bins])
 
-    return {'p_conn_dist': p_conn_dist, 'count_conn': count_conn, 'count_all': count_all, 'dist_bins': dist_bins}
+    return {
+        "p_conn_dist": p_conn_dist,
+        "count_conn": count_conn,
+        "count_all": count_all,
+        "dist_bins": dist_bins,
+    }
 
 
 def _build_2nd_order(p_conn_dist, dist_bins, **_):
@@ -1110,29 +1385,44 @@ def _build_2nd_order(p_conn_dist, dist_bins, **_):
     y = p_conn_dist[np.isfinite(p_conn_dist)]
     try:
         (exp_model_scale, exp_model_exponent), _ = opt.curve_fit(exp_model, X, y, p0=[0.0, 0.0])
-    except:
-        logging.error(f'Exception while fitting model ("{sys.exc_info()[1]}")')
+    except Exception:
+        LOG.error(f'Exception while fitting model ("{sys.exc_info()[1]}")')
         exp_model_scale = exp_model_exponent = np.nan
 
-    logging.info(f'MODEL FIT: f(x) = {exp_model_scale:.6f} * exp(-{exp_model_exponent:.6f} * x)')
+    LOG.info(f"MODEL FIT: f(x) = {exp_model_scale:.6f} * exp(-{exp_model_exponent:.6f} * x)")
 
-    model = 'exp_model_scale * np.exp(-exp_model_exponent * np.array(d))'
-    model_inputs = ['d']
-    model_params = {'exp_model_scale': exp_model_scale, 'exp_model_exponent': exp_model_exponent}
+    model = "exp_model_scale * np.exp(-exp_model_exponent * np.array(d))"
+    model_inputs = ["d"]
+    model_params = {"exp_model_scale": exp_model_scale, "exp_model_exponent": exp_model_exponent}
 
-    return {'model': model, 'model_inputs': model_inputs, 'model_params': model_params}
+    return {"model": model, "model_inputs": model_inputs, "model_params": model_params}
 
 
-def _plot_2nd_order(adj, node_properties, model_name, p_conn_dist, count_conn, count_all, dist_bins, model, model_inputs, model_params, plot_dir=None, **_):
+def _plot_2nd_order(
+    adj,
+    node_properties,
+    model_name,
+    p_conn_dist,
+    count_conn,
+    count_all,
+    dist_bins,
+    model,
+    model_inputs,
+    model_params,
+    plot_dir=None,
+    **_,
+):
     """Visualize data vs. model (2nd order)."""
     if plot_dir is not None:
         if not os.path.exists(plot_dir):
             os.makedirs(plot_dir)
 
+    plt = _pyplot()
+    PROB_CMAP = plt.colormaps.get_cmap("hot")
     bin_offset = 0.5 * np.diff(dist_bins[:2])[0]
     dist_model = np.linspace(dist_bins[0], dist_bins[-1], 100)
 
-    model_str = f'f(x) = {model_params["exp_model_scale"]:.3f} * exp(-{model_params["exp_model_exponent"]:.3f} * x)'
+    model_str = f"f(x) = {model_params['exp_model_scale']:.3f} * exp(-{model_params['exp_model_exponent']:.3f} * x)"
     model_fct = _get_model_function(model, model_inputs, model_params)
 
     if isinstance(node_properties, list):
@@ -1145,58 +1435,79 @@ def _plot_2nd_order(adj, node_properties, model_name, p_conn_dist, count_conn, c
 
     # Data vs. model
     plt.subplot(1, 2, 1)
-    plt.step(dist_bins, np.hstack([p_conn_dist[0], p_conn_dist]), color=DATA_COLOR, label=f'Data: N = {N_pre}x{N_post} cells')
-    plt.plot(dist_bins[:-1] + bin_offset, p_conn_dist, '.', color=DATA_COLOR)
-    plt.plot(dist_model, model_fct(dist_model), '--', color=MODEL_COLOR, label='Model: ' + model_str)
+    plt.step(
+        dist_bins,
+        np.hstack([p_conn_dist[0], p_conn_dist]),
+        color=DATA_COLOR,
+        label=f"Data: N = {N_pre}x{N_post} cells",
+    )
+    plt.plot(dist_bins[:-1] + bin_offset, p_conn_dist, ".", color=DATA_COLOR)
+    plt.plot(
+        dist_model, model_fct(dist_model), "--", color=MODEL_COLOR, label="Model: " + model_str
+    )
     plt.grid()
-    plt.xlabel('Distance ($\\mu$m)')
-    plt.ylabel('Conn. prob.')
-    plt.title('Data vs. model fit')
+    plt.xlabel("Distance ($\\mu$m)")
+    plt.ylabel("Conn. prob.")
+    plt.title("Data vs. model fit")
     plt.legend()
 
     # 2D connection probability (model)
     plt.subplot(1, 2, 2)
-    plot_range = 500 # (um)
-    r_markers = [200, 400] # (um)
+    plot_range = 500  # (um)
+    r_markers = [200, 400]  # (um)
     dx = np.linspace(-plot_range, plot_range, 201)
     dz = np.linspace(plot_range, -plot_range, 201)
     xv, zv = np.meshgrid(dx, dz)
     vdist = np.sqrt(xv**2 + zv**2)
     pdist = model_fct(vdist)
-    plt.imshow(pdist, interpolation='bilinear', extent=(-plot_range, plot_range, -plot_range, plot_range), cmap=PROB_CMAP, vmin=0.0)
+    plt.imshow(
+        pdist,
+        interpolation="bilinear",
+        extent=(-plot_range, plot_range, -plot_range, plot_range),
+        cmap=PROB_CMAP,
+        vmin=0.0,
+    )
     for r in r_markers:
-        plt.gca().add_patch(plt.Circle((0, 0), r, edgecolor='w', linestyle='--', fill=False))
-        plt.text(0, r, f'{r} $\\mu$m', color='w', ha='center', va='bottom')
+        plt.gca().add_patch(plt.Circle((0, 0), r, edgecolor="w", linestyle="--", fill=False))
+        plt.text(0, r, f"{r} $\\mu$m", color="w", ha="center", va="bottom")
     plt.xticks([])
     plt.yticks([])
-    plt.xlabel('$\\Delta$x')
-    plt.ylabel('$\\Delta$z')
-    plt.title('2D model')
-    plt.colorbar(label='Conn. prob.')
+    plt.xlabel("$\\Delta$x")
+    plt.ylabel("$\\Delta$z")
+    plt.title("2D model")
+    plt.colorbar(label="Conn. prob.")
 
-    plt.suptitle(f'Distance-dependent connection probability model (2nd order)')
+    plt.suptitle("Distance-dependent connection probability model (2nd order)")
     plt.tight_layout()
     if plot_dir is not None:
-        out_fn = os.path.abspath(os.path.join(plot_dir, model_name + '__data_vs_model.png'))
+        out_fn = os.path.abspath(os.path.join(plot_dir, model_name + "__data_vs_model.png"))
         plt.savefig(out_fn)
-        logging.info(f'Figure saved to {out_fn}')
+        LOG.info(f"Figure saved to {out_fn}")
 
     # Data counts
     plt.figure(figsize=(12, 4), dpi=300)
-    plt.bar(dist_bins[:-1] + bin_offset, count_all, width=2.0 * bin_offset, edgecolor='k', label='All pair count')
-    plt.bar(dist_bins[:-1] + bin_offset, count_conn, width=1.5 * bin_offset, label='Connection count')
-    plt.gca().set_yscale('log')
+    plt.bar(
+        dist_bins[:-1] + bin_offset,
+        count_all,
+        width=2.0 * bin_offset,
+        edgecolor="k",
+        label="All pair count",
+    )
+    plt.bar(
+        dist_bins[:-1] + bin_offset, count_conn, width=1.5 * bin_offset, label="Connection count"
+    )
+    plt.gca().set_yscale("log")
     plt.xticks(dist_bins, rotation=45)
     plt.grid()
-    plt.xlabel('Distance ($\\mu$m)')
-    plt.ylabel('Count')
-    plt.title(f'Distance-dependent connection counts (N = {N_pre}x{N_post} cells)')
+    plt.xlabel("Distance ($\\mu$m)")
+    plt.ylabel("Count")
+    plt.title(f"Distance-dependent connection counts (N = {N_pre}x{N_post} cells)")
     plt.legend()
     plt.tight_layout()
     if plot_dir is not None:
-        out_fn = os.path.abspath(os.path.join(plot_dir, model_name + '__data_counts.png'))
+        out_fn = os.path.abspath(os.path.join(plot_dir, model_name + "__data_counts.png"))
         plt.savefig(out_fn)
-        logging.info(f'Figure saved to {out_fn}')
+        LOG.info(f"Figure saved to {out_fn}")
 
 
 ###################################################################################################
@@ -1204,24 +1515,39 @@ def _plot_2nd_order(adj, node_properties, model_name, p_conn_dist, count_conn, c
 #   3rd order (bipolar distance-dependent)
 ###################################################################################################
 
-def _extract_3rd_order(adj, node_properties, bin_size_um=100, max_range_um=None, coord_names=None, depth_name=None, split_indices=None, part_idx=None, **_):
+
+def _extract_3rd_order(
+    adj,
+    node_properties,
+    bin_size_um=100,
+    max_range_um=None,
+    coord_names=None,
+    depth_name=None,
+    split_indices=None,
+    part_idx=None,
+    **_,
+):
     """Extract distance-dependent connection probability (3rd order) from a sample of pairs of neurons."""
 
     if coord_names is None:
-        coord_names = ['x', 'y', 'z'] # Default names of coordinatate system axes as in node_properties
+        coord_names = [
+            "x",
+            "y",
+            "z",
+        ]  # Default names of coordinatate system axes as in node_properties
     if depth_name is None:
-        depth_name = 'depth' # Default name of depth column in node_properties
+        depth_name = "depth"  # Default name of depth column in node_properties
     if isinstance(split_indices, list):
         N_split = len(split_indices)
     else:
-        N_split = 0 # Don't split
-    if part_idx is not None: # Run only data extraction of given part idx
-        assert 0 <= part_idx < N_split, 'ERROR: Part index out of range!'
+        N_split = 0  # Don't split
+    if part_idx is not None:  # Run only data extraction of given part idx
+        assert 0 <= part_idx < N_split, "ERROR: Part index out of range!"
 
     pos_table = node_properties[coord_names].to_numpy()
     depth_table = node_properties[depth_name].to_numpy()
 
-    if N_split == 0: # Compute all at once
+    if N_split == 0:  # Compute all at once
         # Compute distance matrix
         dist_mat = _compute_dist_matrix_symmetric(pos_table)
 
@@ -1235,10 +1561,14 @@ def _extract_3rd_order(adj, node_properties, bin_size_um=100, max_range_um=None,
         dist_bins = np.arange(0, num_dist_bins + 1) * bin_size_um
         bip_bins = [np.nanmin(bip_mat), 0, np.nanmax(bip_mat)]
 
-        p_conn_dist_bip, count_conn, count_all = _extract_dependent_p_conn(adj, [dist_mat, bip_mat], [dist_bins, bip_bins])
+        p_conn_dist_bip, count_conn, count_all = _extract_dependent_p_conn(
+            adj, [dist_mat, bip_mat], [dist_bins, bip_bins]
+        )
 
-    else: # Split computation into N_split data splits (to reduce memory consumption)
-        assert max_range_um is not None, f'ERROR: Max. range must be specified if data extraction splitted into {N_split} parts!'
+    else:  # Split computation into N_split data splits (to reduce memory consumption)
+        assert max_range_um is not None, (
+            f"ERROR: Max. range must be specified if data extraction splitted into {N_split} parts!"
+        )
         num_dist_bins = np.ceil(max_range_um / bin_size_um).astype(int)
         dist_bins = np.arange(0, num_dist_bins + 1) * bin_size_um
         bip_bins = [-1, 0, 1]
@@ -1248,7 +1578,7 @@ def _extract_3rd_order(adj, node_properties, bin_size_um=100, max_range_um=None,
         for sidx, split_sel in enumerate(split_indices):
             if part_idx is not None and part_idx != sidx:
                 continue
-            logging.info(f'<SPLIT {sidx + 1} of {N_split}>')
+            LOG.info(f"<SPLIT {sidx + 1} of {N_split}>")
 
             # Compute distance matrix
             dist_mat_split = _compute_dist_matrix(pos_table[split_sel, :], pos_table)
@@ -1257,27 +1587,50 @@ def _extract_3rd_order(adj, node_properties, bin_size_um=100, max_range_um=None,
             bip_mat_split = _compute_bip_matrix(depth_table[split_sel], depth_table)
 
             # Extract distance-dependent connection counts
-            _, count_conn_split, count_all_split = _extract_dependent_p_conn(adj[split_sel, :], [dist_mat_split, bip_mat_split], [dist_bins, bip_bins])
+            _, count_conn_split, count_all_split = _extract_dependent_p_conn(
+                adj[split_sel, :], [dist_mat_split, bip_mat_split], [dist_bins, bip_bins]
+            )
             count_conn += count_conn_split
             count_all += count_all_split
 
         # Compute overall connection probabilities
         p_conn_dist_bip = np.array(count_conn / count_all)
-#         p_conn_dist_bip[np.isnan(p_conn_dist_bip)] = 0.0
+    #         p_conn_dist_bip[np.isnan(p_conn_dist_bip)] = 0.0
 
-    return {'p_conn_dist_bip': p_conn_dist_bip, 'count_conn': count_conn, 'count_all': count_all, 'dist_bins': dist_bins, 'bip_bins': bip_bins}
+    return {
+        "p_conn_dist_bip": p_conn_dist_bip,
+        "count_conn": count_conn,
+        "count_all": count_all,
+        "dist_bins": dist_bins,
+        "bip_bins": bip_bins,
+    }
 
 
-def _extract_3rd_order_pathway(adj, node_properties_src, node_properties_tgt, bin_size_um=100, max_range_um=None, coord_names=None, depth_name=None, split_indices=None, part_idx=None, **_):
+def _extract_3rd_order_pathway(
+    adj,
+    node_properties_src,
+    node_properties_tgt,
+    bin_size_um=100,
+    max_range_um=None,
+    coord_names=None,
+    depth_name=None,
+    split_indices=None,
+    part_idx=None,
+    **_,
+):
     """Extract distance-dependent connection probability (3rd order) from a sample of pairs of neurons
-       for separate pathways (i.e., non-symmetric adj)."""
+    for separate pathways (i.e., non-symmetric adj)."""
 
     if coord_names is None:
-        coord_names = ['x', 'y', 'z'] # Default names of coordinatate system axes as in node_properties
+        coord_names = [
+            "x",
+            "y",
+            "z",
+        ]  # Default names of coordinatate system axes as in node_properties
     if depth_name is None:
-        depth_name = 'depth' # Default name of depth column in node_properties
+        depth_name = "depth"  # Default name of depth column in node_properties
 
-    assert split_indices is None and part_idx is None, 'ERROR: Data splitting not supported!'
+    assert split_indices is None and part_idx is None, "ERROR: Data splitting not supported!"
 
     pos_table_src = node_properties_src[coord_names].to_numpy()
     pos_table_tgt = node_properties_tgt[coord_names].to_numpy()
@@ -1297,9 +1650,17 @@ def _extract_3rd_order_pathway(adj, node_properties_src, node_properties_tgt, bi
     dist_bins = np.arange(0, num_dist_bins + 1) * bin_size_um
     bip_bins = [np.nanmin(bip_mat), 0, np.nanmax(bip_mat)]
 
-    p_conn_dist_bip, count_conn, count_all = _extract_dependent_p_conn(adj, [dist_mat, bip_mat], [dist_bins, bip_bins])
+    p_conn_dist_bip, count_conn, count_all = _extract_dependent_p_conn(
+        adj, [dist_mat, bip_mat], [dist_bins, bip_bins]
+    )
 
-    return {'p_conn_dist_bip': p_conn_dist_bip, 'count_conn': count_conn, 'count_all': count_all, 'dist_bins': dist_bins, 'bip_bins': bip_bins}
+    return {
+        "p_conn_dist_bip": p_conn_dist_bip,
+        "count_conn": count_conn,
+        "count_all": count_all,
+        "dist_bins": dist_bins,
+        "bip_bins": bip_bins,
+    }
 
 
 def _build_3rd_order(p_conn_dist_bip, dist_bins, **_):
@@ -1311,35 +1672,63 @@ def _build_3rd_order(p_conn_dist_bip, dist_bins, **_):
 
     exp_model = lambda x, a, b: a * np.exp(-b * np.array(x))
     try:
-        (bip_neg_exp_model_scale, bip_neg_exp_model_exponent), _ = opt.curve_fit(exp_model, X, y[:, 0], p0=[0.0, 0.0])
-        (bip_pos_exp_model_scale, bip_pos_exp_model_exponent), _ = opt.curve_fit(exp_model, X, y[:, 1], p0=[0.0, 0.0])
-    except:
-        logging.error(f'Exception while fitting model ("{sys.exc_info()[1]}")')
+        (bip_neg_exp_model_scale, bip_neg_exp_model_exponent), _ = opt.curve_fit(
+            exp_model, X, y[:, 0], p0=[0.0, 0.0]
+        )
+        (bip_pos_exp_model_scale, bip_pos_exp_model_exponent), _ = opt.curve_fit(
+            exp_model, X, y[:, 1], p0=[0.0, 0.0]
+        )
+    except Exception:
+        LOG.error(f'Exception while fitting model ("{sys.exc_info()[1]}")')
         bip_neg_exp_model_scale = bip_neg_exp_model_exponent = np.nan
         bip_pos_exp_model_scale = bip_pos_exp_model_exponent = np.nan
 
-    logging.info(f'BIPOLAR MODEL FIT: f(x, dz) = {bip_neg_exp_model_scale:.6f} * exp(-{bip_neg_exp_model_exponent:.6f} * x) if dz < 0')
-    logging.info(f'                              {bip_pos_exp_model_scale:.6f} * exp(-{bip_pos_exp_model_exponent:.6f} * x) if dz > 0')
-    logging.info('                              AVERAGE OF BOTH MODELS  if dz == 0')
+    LOG.info(
+        f"BIPOLAR MODEL FIT: f(x, dz) = {bip_neg_exp_model_scale:.6f} * exp(-{bip_neg_exp_model_exponent:.6f} * x) if dz < 0"
+    )
+    LOG.info(
+        f"                              {bip_pos_exp_model_scale:.6f} * exp(-{bip_pos_exp_model_exponent:.6f} * x) if dz > 0"
+    )
+    LOG.info("                              AVERAGE OF BOTH MODELS  if dz == 0")
 
-    model = 'np.select([np.array(dz) < 0, np.array(dz) > 0, np.array(dz) == 0], [bip_neg_exp_model_scale * np.exp(-bip_neg_exp_model_exponent * np.array(d)), bip_pos_exp_model_scale * np.exp(-bip_pos_exp_model_exponent * np.array(d)), 0.5 * (bip_neg_exp_model_scale * np.exp(-bip_neg_exp_model_exponent * np.array(d)) + bip_pos_exp_model_scale * np.exp(-bip_pos_exp_model_exponent * np.array(d)))])'
-    model_inputs = ['d', 'dz']
-    model_params = {'bip_neg_exp_model_scale': bip_neg_exp_model_scale, 'bip_neg_exp_model_exponent': bip_neg_exp_model_exponent, 'bip_pos_exp_model_scale': bip_pos_exp_model_scale, 'bip_pos_exp_model_exponent': bip_pos_exp_model_exponent}
+    model = "np.select([np.array(dz) < 0, np.array(dz) > 0, np.array(dz) == 0], [bip_neg_exp_model_scale * np.exp(-bip_neg_exp_model_exponent * np.array(d)), bip_pos_exp_model_scale * np.exp(-bip_pos_exp_model_exponent * np.array(d)), 0.5 * (bip_neg_exp_model_scale * np.exp(-bip_neg_exp_model_exponent * np.array(d)) + bip_pos_exp_model_scale * np.exp(-bip_pos_exp_model_exponent * np.array(d)))])"
+    model_inputs = ["d", "dz"]
+    model_params = {
+        "bip_neg_exp_model_scale": bip_neg_exp_model_scale,
+        "bip_neg_exp_model_exponent": bip_neg_exp_model_exponent,
+        "bip_pos_exp_model_scale": bip_pos_exp_model_scale,
+        "bip_pos_exp_model_exponent": bip_pos_exp_model_exponent,
+    }
 
-    return {'model': model, 'model_inputs': model_inputs, 'model_params': model_params}
+    return {"model": model, "model_inputs": model_inputs, "model_params": model_params}
 
 
-def _plot_3rd_order(adj, node_properties, model_name, p_conn_dist_bip, count_conn, count_all, dist_bins, model, model_inputs, model_params, plot_dir=None, **_):
+def _plot_3rd_order(
+    adj,
+    node_properties,
+    model_name,
+    p_conn_dist_bip,
+    count_conn,
+    count_all,
+    dist_bins,
+    model,
+    model_inputs,
+    model_params,
+    plot_dir=None,
+    **_,
+):
     """Visualize data vs. model (3rd order)."""
     if plot_dir is not None:
         if not os.path.exists(plot_dir):
             os.makedirs(plot_dir)
 
+    plt = _pyplot()
+    PROB_CMAP = plt.colormaps.get_cmap("hot")
     bin_offset = 0.5 * np.diff(dist_bins[:2])[0]
     dist_model = np.linspace(dist_bins[0], dist_bins[-1], 100)
 
-    model_strN = f'{model_params["bip_neg_exp_model_scale"]:.3f} * exp(-{model_params["bip_neg_exp_model_exponent"]:.3f} * x)'
-    model_strP = f'{model_params["bip_pos_exp_model_scale"]:.3f} * exp(-{model_params["bip_pos_exp_model_exponent"]:.3f} * x)'
+    model_strN = f"{model_params['bip_neg_exp_model_scale']:.3f} * exp(-{model_params['bip_neg_exp_model_exponent']:.3f} * x)"
+    model_strP = f"{model_params['bip_pos_exp_model_scale']:.3f} * exp(-{model_params['bip_pos_exp_model_exponent']:.3f} * x)"
     model_fct = _get_model_function(model, model_inputs, model_params)
 
     if isinstance(node_properties, list):
@@ -1352,65 +1741,90 @@ def _plot_3rd_order(adj, node_properties, model_name, p_conn_dist_bip, count_con
 
     # Data vs. model
     plt.subplot(1, 2, 1)
-    bip_dist = np.concatenate((-dist_bins[:-1][::-1] - bin_offset, [0.0], dist_bins[:-1] + bin_offset))
+    bip_dist = np.concatenate(
+        (-dist_bins[:-1][::-1] - bin_offset, [0.0], dist_bins[:-1] + bin_offset)
+    )
     bip_data = np.concatenate((p_conn_dist_bip[::-1, 0], [np.nan], p_conn_dist_bip[:, 1]))
     all_bins = np.concatenate((-dist_bins[1:][::-1], [0.0], dist_bins[1:]))
     bin_data = np.concatenate((p_conn_dist_bip[::-1, 0], p_conn_dist_bip[:, 1]))
-    plt.step(all_bins, np.hstack([bin_data[0], bin_data]), color=DATA_COLOR, label=f'Data: N = {N_pre}x{N_post} cells')
-    plt.plot(bip_dist, bip_data, '.', color=DATA_COLOR)
-    plt.plot(-dist_model, model_fct(dist_model, np.sign(-dist_model)), '--', color=MODEL_COLOR, label='Model: ' + model_strN)
-    plt.plot(dist_model, model_fct(dist_model, np.sign(dist_model)), '--', color=MODEL_COLOR2, label='Model: ' + model_strP)
+    plt.step(
+        all_bins,
+        np.hstack([bin_data[0], bin_data]),
+        color=DATA_COLOR,
+        label=f"Data: N = {N_pre}x{N_post} cells",
+    )
+    plt.plot(bip_dist, bip_data, ".", color=DATA_COLOR)
+    plt.plot(
+        -dist_model,
+        model_fct(dist_model, np.sign(-dist_model)),
+        "--",
+        color=MODEL_COLOR,
+        label="Model: " + model_strN,
+    )
+    plt.plot(
+        dist_model,
+        model_fct(dist_model, np.sign(dist_model)),
+        "--",
+        color=MODEL_COLOR2,
+        label="Model: " + model_strP,
+    )
     plt.grid()
-    plt.xlabel('sign($\\Delta$z) * Distance [$\\mu$m]')
-    plt.ylabel('Conn. prob.')
-    plt.title('Data vs. model fit')
-    plt.legend(loc='upper left', fontsize=8)
+    plt.xlabel("sign($\\Delta$z) * Distance [$\\mu$m]")
+    plt.ylabel("Conn. prob.")
+    plt.title("Data vs. model fit")
+    plt.legend(loc="upper left", fontsize=8)
 
     # 2D connection probability (model)
     plt.subplot(1, 2, 2)
-    plot_range = 500 # (um)
-    r_markers = [200, 400] # (um)
+    plot_range = 500  # (um)
+    r_markers = [200, 400]  # (um)
     dx = np.linspace(-plot_range, plot_range, 201)
     dz = np.linspace(plot_range, -plot_range, 201)
     xv, zv = np.meshgrid(dx, dz)
     vdist = np.sqrt(xv**2 + zv**2)
     pdist = model_fct(vdist, np.sign(zv))
-    plt.imshow(pdist, interpolation='bilinear', extent=(-plot_range, plot_range, -plot_range, plot_range), cmap=PROB_CMAP, vmin=0.0)
-    plt.plot(plt.xlim(), np.zeros(2), 'w', linewidth=0.5)
+    plt.imshow(
+        pdist,
+        interpolation="bilinear",
+        extent=(-plot_range, plot_range, -plot_range, plot_range),
+        cmap=PROB_CMAP,
+        vmin=0.0,
+    )
+    plt.plot(plt.xlim(), np.zeros(2), "w", linewidth=0.5)
     for r in r_markers:
-        plt.gca().add_patch(plt.Circle((0, 0), r, edgecolor='w', linestyle='--', fill=False))
-        plt.text(0, r, f'{r} $\\mu$m', color='w', ha='center', va='bottom')
+        plt.gca().add_patch(plt.Circle((0, 0), r, edgecolor="w", linestyle="--", fill=False))
+        plt.text(0, r, f"{r} $\\mu$m", color="w", ha="center", va="bottom")
     plt.xticks([])
     plt.yticks([])
-    plt.xlabel('$\\Delta$x')
-    plt.ylabel('$\\Delta$z')
-    plt.title('2D model')
-    plt.colorbar(label='Conn. prob.')
+    plt.xlabel("$\\Delta$x")
+    plt.ylabel("$\\Delta$z")
+    plt.title("2D model")
+    plt.colorbar(label="Conn. prob.")
 
-    plt.suptitle(f'Bipolar distance-dependent connection probability model (3rd order)')
+    plt.suptitle("Bipolar distance-dependent connection probability model (3rd order)")
     plt.tight_layout()
     if plot_dir is not None:
-        out_fn = os.path.abspath(os.path.join(plot_dir, model_name + '__data_vs_model.png'))
+        out_fn = os.path.abspath(os.path.join(plot_dir, model_name + "__data_vs_model.png"))
         plt.savefig(out_fn)
-        logging.info(f'Figure saved to {out_fn}')
+        LOG.info(f"Figure saved to {out_fn}")
 
     # Data counts
     bip_count = np.concatenate((count_conn[::-1, 0], [np.nan], count_conn[:, 1]))
     bip_count_all = np.concatenate((count_all[::-1, 0], [np.nan], count_all[:, 1]))
     plt.figure(figsize=(12, 4), dpi=300)
-    plt.bar(bip_dist, bip_count_all, width=2.0 * bin_offset, edgecolor='k', label='All pair count')
-    plt.bar(bip_dist, bip_count, width=1.5 * bin_offset, label='Connection count')
-    plt.gca().set_yscale('log')
+    plt.bar(bip_dist, bip_count_all, width=2.0 * bin_offset, edgecolor="k", label="All pair count")
+    plt.bar(bip_dist, bip_count, width=1.5 * bin_offset, label="Connection count")
+    plt.gca().set_yscale("log")
     plt.grid()
-    plt.xlabel('sign($\\Delta$z) * Distance [$\\mu$m]')
-    plt.ylabel('Count')
-    plt.title(f'Bipolar distance-dependent connection counts (N = {N_pre}x{N_post} cells)')
+    plt.xlabel("sign($\\Delta$z) * Distance [$\\mu$m]")
+    plt.ylabel("Count")
+    plt.title(f"Bipolar distance-dependent connection counts (N = {N_pre}x{N_post} cells)")
     plt.legend()
     plt.tight_layout()
     if plot_dir is not None:
-        out_fn = os.path.abspath(os.path.join(plot_dir, model_name + '__data_counts.png'))
+        out_fn = os.path.abspath(os.path.join(plot_dir, model_name + "__data_counts.png"))
         plt.savefig(out_fn)
-        logging.info(f'Figure saved to {out_fn}')
+        LOG.info(f"Figure saved to {out_fn}")
 
 
 def per_group_in_out_bias_model(mat, vertex_properties, property_to_group_by, axis):
@@ -1423,20 +1837,20 @@ def per_group_in_out_bias_model(mat, vertex_properties, property_to_group_by, ax
         The adjacency matrix of the reference connetome for fitting of the per-node-bias values
     vertex_properties: pd.DataFrame
         The vertex properties of the reference connectome for fitting of the per-node-bias values.
-        Must have one row per node, i.e., per row and column of `mat`. Columns of the DataFrame 
+        Must have one row per node, i.e., per row and column of `mat`. Columns of the DataFrame
         represent different properties.
     property_to_group_by : str
-        Name of a column in `vertex_properties`. Vertices in `reference` will be grouped based 
+        Name of a column in `vertex_properties`. Vertices in `reference` will be grouped based
         on the values of that property and the same bias will be used for all vertices in a group.
     axis : int
         One of 0 or 1. If 0, a bias for vertices as target nodes, if 1: as source nodes
-    
+
     Returns
     ---------
     numpy.array
         Shape (n, ), where n is the number of vertices in reference. One weight per vertex. Weights will be higher
         or lower if vertices of the corresponding group in reference have higher or lower degrees, or if the weights
-        of their edges are stronger / weaker. 
+        of their edges are stronger / weaker.
         That is, weights are based on the mean weight per pair, where absence of a connection is interpreted as zero
         weight.
 
@@ -1452,21 +1866,25 @@ def per_group_in_out_bias_model(mat, vertex_properties, property_to_group_by, ax
     categorical = pd.Categorical(vertex_properties[property_to_group_by])
 
     classes = categorical.categories.to_numpy()
-    MM = []
-    for cat_row in range(len(classes)):
-        idx_row = categorical.codes == cat_row
-        row = []
-        for cat_col in range(len(classes)):
-            idx_col = categorical.codes == cat_col
-            row.append(mat[np.ix_(idx_row, idx_col)].nnz)
-        MM.append(row)
-    MM = np.array(MM)
+    # Stored entries from the nodes of each group to the nodes of each group (nodes without a group count nowhere)
+    codes = np.asarray(categorical.codes, dtype=np.int64)
+    in_group = np.flatnonzero(codes >= 0)
+    if in_group.size and in_group[-1] >= min(mat.shape):
+        raise IndexError(f"index ({in_group[-1]}) out of range")
+    if len(codes) < max(mat.shape):  # nodes beyond the end of the table are in no group
+        codes = np.concatenate([codes, np.full(max(mat.shape) - len(codes), -1)])
+    entries = mat.tocoo()
+    from_group, to_group = codes[entries.row], codes[entries.col]
+    grouped = (from_group >= 0) & (to_group >= 0)
+    MM = np.bincount(
+        from_group[grouped] * len(classes) + to_group[grouped], minlength=len(classes) ** 2
+    ).reshape(len(classes), len(classes))
 
     c = vertex_properties[property_to_group_by].value_counts()[classes]
-    nrmlz = c.to_numpy().reshape((-1, 1)) * c.to_numpy().reshape((1, -1)) + 1E-9
+    nrmlz = c.to_numpy().reshape((-1, 1)) * c.to_numpy().reshape((1, -1)) + 1e-9
 
     MM = MM / nrmlz  # Connection prob
-    MM = MM.mean() * (MM ** 1.5) / (MM ** 1.5).mean()
+    MM = MM.mean() * (MM**1.5) / (MM**1.5).mean()
 
     w_per_class = np.nanmean(MM, axis=axis) / np.sqrt(np.nanmean(MM))
     w_per_class = pd.Series(w_per_class, name="weight", index=classes)

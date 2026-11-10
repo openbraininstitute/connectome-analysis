@@ -2,7 +2,7 @@ name: Release
 
 on:
   release:
-    types: [ published ]
+    types: [published]
 
 jobs:
   build-and-publish:
@@ -14,10 +14,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
-      - uses: ./.github/actions/python-poetry-env
+          fetch-depth: 0 # the version is derived from the git tag
+      - uses: astral-sh/setup-uv@v10
       - name: Build
-        run: |
-          poetry build --no-interaction
-      - name: Publish to Pypi
+        run: uv build
+      - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

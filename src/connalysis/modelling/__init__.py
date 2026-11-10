@@ -2,20 +2,20 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-""""Functions for getting parameters for modelling of random graphs."""
+""" "Functions for getting parameters for modelling of random graphs."""
 
 # Import all functions that the user might need
 from .modelling import (
-    run_batch_model_building,
-    run_model_building,
-    run_pathway_model_building,
-    conn_prob_model,
-    conn_prob_pathway_model,
     conn_prob_2nd_order_model,
     conn_prob_2nd_order_pathway_model,
     conn_prob_3rd_order_model,
     conn_prob_3rd_order_pathway_model,
-    per_group_in_out_bias_model
+    conn_prob_model,
+    conn_prob_pathway_model,
+    per_group_in_out_bias_model,
+    run_batch_model_building,
+    run_model_building,
+    run_pathway_model_building,
 )
 
 __all__ = [
@@ -28,5 +28,5 @@ __all__ = [
     "conn_prob_2nd_order_pathway_model",
     "conn_prob_3rd_order_model",
     "conn_prob_3rd_order_pathway_model",
-    "per_group_in_out_bias_model"
+    "per_group_in_out_bias_model",
 ]
