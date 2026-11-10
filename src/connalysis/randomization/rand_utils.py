@@ -168,13 +168,17 @@ def evaluate_probs_less_random(p_mat, adjust=None):
         indptr_out.append(c)
         if c > 0:
             picked.append(np.random.choice(p_mat.indices[a:b], c, p=p, replace=False))
-    picked = np.hstack(picked)
+    if picked:
+        picked = np.hstack(picked)
+    else:
+        picked = np.array([], dtype=int)
     indptr_out = np.cumsum(indptr_out)
     m_out = sp.csr_matrix((np.ones(indptr_out[-1], dtype=bool), 
-                            np.hstack(picked),
+                            picked,
                             indptr_out),
                             shape=p_mat.shape).tocoo()
     return m_out
+
 
 
 def evaluate_probs(p_mat, adjust=None, less_random=False):
